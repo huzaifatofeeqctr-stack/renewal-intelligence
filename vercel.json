@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/sf-sync", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/leadiq-sync", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/industry-intel", "schedule": "0 4 * * 0" }
+  ]
+}

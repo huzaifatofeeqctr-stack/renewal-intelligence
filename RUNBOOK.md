@@ -1,10 +1,33 @@
-# Renewal Intelligence — Build Runbook (v2, Phase 1)
+# Renewal Intelligence — Build Runbook
+
+> **ARCHITECTURE UPDATE (2026-07-06): app-first, minimal n8n.**
+> The full system now lives in this repo as a Next.js app (see `README.md`).
+> The app's API routes + Vercel Cron replace every n8n workflow below. The n8n
+> workflows still exist in the instance but are now **optional/deprecated** —
+> keep them unpublished, or delete them once the app is deployed. The n8n
+> section is retained for reference only.
+
+## Current system (the app)
+
+- `/api/cron/sf-sync` — daily Salesforce → Supabase sync with junk-gate flagging
+- `/api/cron/leadiq-sync` — daily champion tracking poll → signals → SF Task → Slack
+- `/api/cron/industry-intel` — weekly Tavily + Anthropic briefings
+- `POST /api/enrich/clay/dispatch` — manual budgeted Clay batches (100/run, 90-day cooldown)
+- `POST /api/webhooks/clay-callback` — Clay writeback, fill-only-empty
+- `PATCH /api/signals/:id` — dismiss + relevance feedback loop
+- Dashboard: `/` accounts by health, `/signals`, `/contacts`, `/industry`
+
+Setup + env vars: see `README.md` and `.env.example`. Schema:
+`supabase/migrations/0001_renewal_intel_core.sql`.
+
+---
+
+# Legacy reference: n8n phase-1 build (deprecated)
 
 Built: 2026-07-02 · n8n instance: https://n8n.corp.postscript.io
 
-This phase delivers the **LeadIQ + Clay + Tavily/Anthropic** integrations from the
+This phase delivered the **LeadIQ + Clay + Tavily/Anthropic** integrations from the
 Renewal Intelligence v2 design doc as five n8n workflows plus a persistence layer.
-Apollo stakeholder discovery, Salesforce CDC, and the dashboard changes are later phases.
 
 ---
 
