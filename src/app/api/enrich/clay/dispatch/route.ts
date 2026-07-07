@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase';
 import { dispatchToClay } from '@/lib/clay';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
 
 const BATCH_BUDGET = 100; // contacts per invocation — Clay credits are metered
 

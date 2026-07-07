@@ -5,7 +5,6 @@ import { syncTrackedContacts, fetchChanges } from '@/lib/leadiq';
 import { emitSignal } from '@/lib/signals';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
 
 // Daily: sync non-junk contacts to LeadIQ champion tracking, poll for job/title
 // changes since yesterday, and emit signals (store + SF Task + Slack).

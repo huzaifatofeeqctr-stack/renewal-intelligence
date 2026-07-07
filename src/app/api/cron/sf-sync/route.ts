@@ -5,7 +5,6 @@ import { junkCheck } from '@/lib/cleaning';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
 
 interface SfAccount {
   Id: string;

@@ -5,7 +5,6 @@ import { tavilySearch } from '@/lib/tavily';
 import { summarize } from '@/lib/anthropic';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
 
 const SYSTEM_PROMPT =
   'You are a customer success intelligence assistant. Summarize the industry news ' +
