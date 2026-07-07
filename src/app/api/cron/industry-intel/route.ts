@@ -14,6 +14,16 @@ const SYSTEM_PROMPT =
 
 // Weekly: one Tavily search + Anthropic briefing per distinct account industry.
 export async function GET(req: NextRequest) {
+  try {
+    return await run(req);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('industry-intel failed:', e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function run(req: NextRequest) {
   const denied = requireCronAuth(req);
   if (denied) return denied;
 

@@ -10,6 +10,16 @@ export const dynamic = 'force-dynamic';
 // Daily: sync non-junk contacts to LeadIQ champion tracking, poll for job/title
 // changes since yesterday, and emit signals (store + SF Task + Slack).
 export async function GET(req: NextRequest) {
+  try {
+    return await run(req);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('leadiq-sync failed:', e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function run(req: NextRequest) {
   const denied = requireCronAuth(req);
   if (denied) return denied;
 

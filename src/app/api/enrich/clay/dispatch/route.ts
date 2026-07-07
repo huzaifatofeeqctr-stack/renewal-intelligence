@@ -12,6 +12,16 @@ const BATCH_BUDGET = 100; // contacts per invocation — Clay credits are metere
 // the Clay table webhook in renewal-priority order. Run one batch, review
 // enrichment_run_log spend, run the next.
 export async function POST(req: NextRequest) {
+  try {
+    return await run(req);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('clay-dispatch failed:', e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function run(req: NextRequest) {
   const denied = requireCronAuth(req);
   if (denied) return denied;
 

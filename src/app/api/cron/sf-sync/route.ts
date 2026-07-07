@@ -28,6 +28,16 @@ interface SfContact {
 // denormalized onto contacts so downstream reads never need joins.
 // Junk contacts are stored flagged (never dropped) so the dashboard shows them.
 export async function GET(req: NextRequest) {
+  try {
+    return await run(req);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('sf-sync failed:', e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function run(req: NextRequest) {
   const denied = requireCronAuth(req);
   if (denied) return denied;
 
