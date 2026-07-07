@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Guards /api/cron/* and /api/enrich/*. Vercel Cron sends
+// Guards /api/cron/* and /api/enrich/*. The cron runner sends
 // Authorization: Bearer <CRON_SECRET>; manual calls can use the same header
 // or ?secret=.
 export function requireCronAuth(req: NextRequest): NextResponse | null {
@@ -22,7 +22,11 @@ export async function logRun(entry: {
   errors: number;
   notes: string;
 }): Promise<void> {
-  const { supabase } = await import('./supabase');
-  const { error } = await supabase().from('enrichment_run_log').insert(entry);
-  if (error) console.error('run log insert failed:', error.message);
+  try {
+    const { coll } = await import('./db');
+    const runLog = await coll('enrichment_run_log');
+    await runLog.insertOne({ ...entry, run_at: new Date().toISOString() });
+  } catch (e) {
+    console.error('run log insert failed:', e);
+  }
 }

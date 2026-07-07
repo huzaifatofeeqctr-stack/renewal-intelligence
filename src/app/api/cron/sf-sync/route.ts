@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCronAuth, logRun } from '@/lib/auth';
 import { soql } from '@/lib/salesforce';
 import { junkCheck } from '@/lib/cleaning';
-import { supabase } from '@/lib/supabase';
+import { coll } from '@/lib/db';
+import type { AccountDoc, ContactDoc } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,58 +24,90 @@ interface SfContact {
   AccountId: string | null;
 }
 
-// Pulls accounts + contacts from Salesforce into the Supabase read model.
-// Junk contacts are stored flagged (never dropped) so the dashboard can show them.
+// Pulls accounts + contacts from Salesforce into MongoDB. Account fields are
+// denormalized onto contacts so downstream reads never need joins.
+// Junk contacts are stored flagged (never dropped) so the dashboard shows them.
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req);
   if (denied) return denied;
 
-  const db = supabase();
+  const accounts = await coll<AccountDoc>('accounts');
+  const contacts = await coll<ContactDoc>('contacts');
+  const now = new Date().toISOString();
   let errors = 0;
 
   const sfAccounts = await soql<SfAccount>(
     'SELECT Id, Name, Website, Industry, Owner.Email FROM Account WHERE Id IN (SELECT AccountId FROM Contact) LIMIT 2000'
   );
-  for (const a of sfAccounts) {
-    const { error } = await db.from('accounts').upsert(
-      {
-        sfdc_id: a.Id,
-        name: a.Name,
-        website: a.Website,
-        industry: a.Industry,
-        owner_email: a.Owner?.Email ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'sfdc_id' }
-    );
-    if (error) errors++;
-  }
+  const accountById = new Map(sfAccounts.map((a) => [a.Id, a]));
 
-  const { data: accountRows } = await db.from('accounts').select('id, sfdc_id');
-  const accountIdBySfdc = new Map((accountRows ?? []).map((r) => [r.sfdc_id, r.id]));
+  if (sfAccounts.length > 0) {
+    const result = await accounts.bulkWrite(
+      sfAccounts.map((a) => ({
+        updateOne: {
+          filter: { sfdc_id: a.Id },
+          update: {
+            $set: {
+              name: a.Name,
+              website: a.Website,
+              industry: a.Industry,
+              owner_email: a.Owner?.Email ?? null,
+              updated_at: now,
+            },
+            $setOnInsert: { sfdc_id: a.Id, renewal_date: null },
+          },
+          upsert: true,
+        },
+      })),
+      { ordered: false }
+    );
+    errors += result.getWriteErrors?.().length ?? 0;
+  }
 
   const sfContacts = await soql<SfContact>(
     'SELECT Id, FirstName, LastName, Email, Title, AccountId FROM Contact WHERE AccountId != null LIMIT 10000'
   );
   let junkCount = 0;
-  for (const c of sfContacts) {
-    const verdict = junkCheck({ email: c.Email, firstName: c.FirstName, lastName: c.LastName });
-    if (verdict.isJunk) junkCount++;
-    const { error } = await db.from('contacts').upsert(
-      {
-        sfdc_id: c.Id,
-        account_id: c.AccountId ? accountIdBySfdc.get(c.AccountId) ?? null : null,
-        first_name: c.FirstName,
-        last_name: c.LastName,
-        email: c.Email?.toLowerCase() ?? null,
-        title: c.Title,
-        is_junk: verdict.isJunk,
-        junk_reason: verdict.reason,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'sfdc_id' }
-    );
-    if (error) errors++;
+
+  if (sfContacts.length > 0) {
+    const ops = sfContacts.map((c) => {
+      const verdict = junkCheck({ email: c.Email, firstName: c.FirstName, lastName: c.LastName });
+      if (verdict.isJunk) junkCount++;
+      const account = c.AccountId ? accountById.get(c.AccountId) : undefined;
+      return {
+        updateOne: {
+          filter: { sfdc_id: c.Id },
+          update: {
+            $set: {
+              account_sfdc_id: c.AccountId,
+              account_name: account?.Name ?? null,
+              account_owner_email: account?.Owner?.Email ?? null,
+              account_website: account?.Website ?? null,
+              first_name: c.FirstName,
+              last_name: c.LastName,
+              email: c.Email?.toLowerCase() ?? null,
+              title: c.Title,
+              is_junk: verdict.isJunk,
+              junk_reason: verdict.reason,
+              updated_at: now,
+            },
+            $setOnInsert: {
+              sfdc_id: c.Id,
+              account_renewal_date: null,
+              work_email: null,
+              email_valid: 'unknown' as const,
+              personal_email: null,
+              linkedin_url: null,
+              clay_last_run: null,
+              work_email_provider: null,
+            },
+          },
+          upsert: true,
+        },
+      };
+    });
+    const result = await contacts.bulkWrite(ops, { ordered: false });
+    errors += result.getWriteErrors?.().length ?? 0;
   }
 
   await logRun({

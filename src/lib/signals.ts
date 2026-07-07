@@ -1,38 +1,18 @@
-import { supabase } from './supabase';
+import { coll, isDuplicateKeyError } from './db';
 import { createTask } from './salesforce';
 import { notifySlack } from './slack';
-import type { NewSignal } from './types';
+import type { NewSignal, SignalDoc } from './types';
 
 // Creates a signal end-to-end: store (dedup on signal_key), mirror to a
 // Salesforce Task for critical/warning, notify Slack exactly once.
 // Returns true when the signal was new.
 export async function emitSignal(signal: NewSignal): Promise<boolean> {
-  const db = supabase();
+  const signals = await coll<SignalDoc>('signals');
 
-  // Resolve internal FK ids when the SFDC ids are known.
-  let accountId: string | null = null;
-  let contactId: string | null = null;
-  if (signal.account_sfdc_id) {
-    const { data } = await db
-      .from('accounts')
-      .select('id')
-      .eq('sfdc_id', signal.account_sfdc_id)
-      .maybeSingle();
-    accountId = data?.id ?? null;
-  }
-  if (signal.contact_sfdc_id) {
-    const { data } = await db
-      .from('contacts')
-      .select('id')
-      .eq('sfdc_id', signal.contact_sfdc_id)
-      .maybeSingle();
-    contactId = data?.id ?? null;
-  }
-
-  const { error: insertError } = await db.from('signals').insert({
+  const doc: SignalDoc = {
     signal_key: signal.signal_key,
-    account_id: accountId,
-    contact_id: contactId,
+    account_sfdc_id: signal.account_sfdc_id ?? null,
+    contact_sfdc_id: signal.contact_sfdc_id ?? null,
     account_name: signal.account_name,
     contact_name: signal.contact_name,
     signal_type: signal.signal_type,
@@ -43,12 +23,18 @@ export async function emitSignal(signal: NewSignal): Promise<boolean> {
     source: signal.source,
     csm_email: signal.csm_email,
     detected_at: signal.detected_at,
-  });
+    sfdc_task_id: null,
+    dismissed: false,
+    dismissed_at: null,
+    relevance: null,
+    created_at: new Date().toISOString(),
+  };
 
-  if (insertError) {
-    // 23505 = unique violation on signal_key → already emitted, not an error.
-    if (insertError.code === '23505') return false;
-    throw new Error(`signal insert failed: ${insertError.message}`);
+  try {
+    await signals.insertOne(doc);
+  } catch (e) {
+    if (isDuplicateKeyError(e)) return false; // already emitted — not an error
+    throw e;
   }
 
   if (signal.severity !== 'info') {
@@ -68,16 +54,21 @@ export async function emitSignal(signal: NewSignal): Promise<boolean> {
       ActivityDate: due,
     });
     if (taskId) {
-      await db.from('signals').update({ sfdc_task_id: taskId }).eq('signal_key', signal.signal_key);
+      await signals.updateOne({ signal_key: signal.signal_key }, { $set: { sfdc_task_id: taskId } });
     }
   }
 
-  // notification_log guarantees once-per-signal_key even across re-runs.
-  const { error: notifError } = await db
-    .from('notification_log')
-    .insert({ signal_key: signal.signal_key, channel: 'slack-webhook' });
-  if (!notifError) {
+  // notification_log's unique index guarantees once-per-signal_key across re-runs.
+  const notifications = await coll('notification_log');
+  try {
+    await notifications.insertOne({
+      signal_key: signal.signal_key,
+      notified_at: new Date().toISOString(),
+      channel: 'slack-webhook',
+    });
     await notifySlack(signal);
+  } catch (e) {
+    if (!isDuplicateKeyError(e)) throw e;
   }
 
   return true;

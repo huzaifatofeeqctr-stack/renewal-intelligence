@@ -1,18 +1,16 @@
-import { supabase } from '@/lib/supabase';
-import type { IndustryIntelRow } from '@/lib/types';
+import { coll } from '@/lib/db';
+import { requireUser } from '@/lib/require-user';
+import type { IndustryIntelDoc } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 export default async function IndustryPage() {
-  let briefings: IndustryIntelRow[] = [];
+  await requireUser();
+  let briefings: IndustryIntelDoc[] = [];
   let loadError: string | null = null;
   try {
-    const { data, error } = await supabase()
-      .from('industry_intel')
-      .select('*')
-      .order('industry', { ascending: true });
-    if (error) throw new Error(error.message);
-    briefings = (data ?? []) as IndustryIntelRow[];
+    const c = await coll<IndustryIntelDoc>('industry_intel');
+    briefings = await c.find({}).sort({ industry: 1 }).toArray();
   } catch (e) {
     loadError = e instanceof Error ? e.message : 'failed to load';
   }
@@ -22,12 +20,12 @@ export default async function IndustryPage() {
       <h1>Industry Intel</h1>
       <p className="subtitle">Weekly Tavily + Anthropic briefings per account industry — always served from cache.</p>
       {loadError ? (
-        <div className="empty">Could not reach Supabase ({loadError}).</div>
+        <div className="empty">Could not reach MongoDB ({loadError}).</div>
       ) : briefings.length === 0 ? (
         <div className="empty">No briefings yet — the weekly industry-intel cron populates this.</div>
       ) : (
         briefings.map((b) => (
-          <div className="briefing" key={b.id}>
+          <div className="briefing" key={b.industry}>
             <h3>
               {b.industry}{' '}
               {b.generated_at && (

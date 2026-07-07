@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronAuth, logRun } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { coll } from '@/lib/db';
 import { syncTrackedContacts, fetchChanges } from '@/lib/leadiq';
 import { emitSignal } from '@/lib/signals';
+import type { ContactDoc } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,31 +13,18 @@ export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req);
   if (denied) return denied;
 
-  const db = supabase();
-  const { data: contacts, error } = await db
-    .from('contacts')
-    .select('sfdc_id, first_name, last_name, email, title, account_id, accounts(sfdc_id, name, owner_email)')
-    .eq('is_junk', false)
-    .not('email', 'is', null)
-    .limit(1000);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  type JoinedContact = {
-    sfdc_id: string;
-    first_name: string | null;
-    last_name: string | null;
-    email: string | null;
-    title: string | null;
-    accounts: { sfdc_id: string; name: string; owner_email: string | null } | null;
-  };
-  const tracked = (contacts ?? []) as unknown as JoinedContact[];
+  const contacts = await coll<ContactDoc>('contacts');
+  const tracked = await contacts
+    .find({ is_junk: false, email: { $ne: null } })
+    .limit(1000)
+    .toArray();
 
   await syncTrackedContacts(
     tracked.map((c) => ({
       sfdcId: c.sfdc_id,
       name: `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
       email: c.email ?? '',
-      company: c.accounts?.name ?? '',
+      company: c.account_name ?? '',
     }))
   );
 
@@ -53,13 +41,14 @@ export async function GET(req: NextRequest) {
     const isCompany = ch.changeType === 'new_company';
     const contactName =
       ch.contactName || `${known?.first_name ?? ''} ${known?.last_name ?? ''}`.trim() || ch.email;
-    const previousValue = ch.previousValue || (isCompany ? known?.accounts?.name ?? '' : known?.title ?? '');
+    const previousValue =
+      ch.previousValue || (isCompany ? known?.account_name ?? '' : known?.title ?? '');
     try {
       const isNew = await emitSignal({
         signal_key: `${ch.contactSfdcId || ch.email}|job_change_${ch.changeType}|${ch.newValue}`,
-        account_sfdc_id: known?.accounts?.sfdc_id,
+        account_sfdc_id: known?.account_sfdc_id ?? undefined,
         contact_sfdc_id: ch.contactSfdcId || known?.sfdc_id,
-        account_name: known?.accounts?.name ?? '',
+        account_name: known?.account_name ?? '',
         contact_name: contactName,
         signal_type: isCompany ? 'job_change_new_company' : 'job_change_new_title',
         severity: isCompany ? 'critical' : 'warning',
@@ -69,7 +58,7 @@ export async function GET(req: NextRequest) {
         previous_value: previousValue,
         new_value: ch.newValue,
         source: 'leadiq',
-        csm_email: known?.accounts?.owner_email ?? '',
+        csm_email: known?.account_owner_email ?? '',
         detected_at: ch.detectedAt,
       });
       if (isNew) emitted++;

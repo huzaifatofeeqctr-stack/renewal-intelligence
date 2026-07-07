@@ -6,21 +6,25 @@ export type SignalType =
   | 'new_stakeholder'
   | 'data_quality';
 
-export interface AccountRow {
-  id: string;
+// Documents reference Salesforce IDs directly — no join tables needed.
+
+export interface AccountDoc {
   sfdc_id: string;
   name: string;
   website: string | null;
   industry: string | null;
   owner_email: string | null;
   renewal_date: string | null;
-  health_score: number | null;
+  updated_at: string;
 }
 
-export interface ContactRow {
-  id: string;
+export interface ContactDoc {
   sfdc_id: string;
-  account_id: string | null;
+  account_sfdc_id: string | null;
+  account_name: string | null;
+  account_owner_email: string | null;
+  account_renewal_date: string | null;
+  account_website: string | null;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -33,13 +37,13 @@ export interface ContactRow {
   junk_reason: string | null;
   clay_last_run: string | null;
   work_email_provider: string | null;
+  updated_at: string;
 }
 
-export interface SignalRow {
-  id: string;
+export interface SignalDoc {
   signal_key: string;
-  account_id: string | null;
-  contact_id: string | null;
+  account_sfdc_id: string | null;
+  contact_sfdc_id: string | null;
   account_name: string | null;
   contact_name: string | null;
   signal_type: SignalType;
@@ -52,17 +56,29 @@ export interface SignalRow {
   detected_at: string;
   sfdc_task_id: string | null;
   dismissed: boolean;
+  dismissed_at: string | null;
   relevance: 'helpful' | 'not_helpful' | 'inaccurate' | null;
   created_at: string;
 }
 
-export interface IndustryIntelRow {
-  id: string;
+export interface IndustryIntelDoc {
   industry: string;
   briefing_summary: string | null;
   sources: { title: string; url: string }[];
-  generated_at: string | null;
+  tavily_query: string | null;
   model_used: string | null;
+  generated_at: string | null;
+  updated_at: string;
+}
+
+export interface RunLogDoc {
+  workflow_name: string;
+  run_at: string;
+  items_in: number;
+  items_skipped_junk: number;
+  items_processed: number;
+  errors: number;
+  notes: string;
 }
 
 export interface NewSignal {
@@ -76,7 +92,7 @@ export interface NewSignal {
   summary: string;
   previous_value: string;
   new_value: string;
-  source: SignalRow['source'];
+  source: SignalDoc['source'];
   csm_email: string;
   detected_at: string;
 }

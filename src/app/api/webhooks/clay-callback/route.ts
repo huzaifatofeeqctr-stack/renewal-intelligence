@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { coll } from '@/lib/db';
 import { updateContact } from '@/lib/salesforce';
 import { parseClayCallback } from '@/lib/clay';
 import { logRun } from '@/lib/auth';
+import type { ContactDoc } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 // Clay HTTP-API column POSTs each enriched row here with ?secret=<CLAY_CALLBACK_SECRET>.
-// Fill-only-empty: existing Supabase/Salesforce values are never overwritten,
-// and emails are only written when Clay marks them valid.
+// Fill-only-empty: existing values are never overwritten, and emails are only
+// written when Clay marks them valid.
 export async function POST(req: NextRequest) {
   const secret = process.env.CLAY_CALLBACK_SECRET;
   if (secret && req.nextUrl.searchParams.get('secret') !== secret) {
@@ -21,18 +22,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing contact_id' }, { status: 400 });
   }
 
-  const db = supabase();
-  const { data: current } = await db
-    .from('contacts')
-    .select('id, email, title, linkedin_url, personal_email')
-    .eq('sfdc_id', payload.contact_id)
-    .maybeSingle();
+  const contacts = await coll<ContactDoc>('contacts');
+  const current = await contacts.findOne({ sfdc_id: payload.contact_id });
   if (!current) {
     return NextResponse.json({ error: 'unknown contact' }, { status: 404 });
   }
 
   const emailUsable = payload.email_valid === 'valid' && payload.work_email;
-  const updates: Record<string, unknown> = {
+  const updates: Partial<ContactDoc> = {
     email_valid: payload.email_valid,
     clay_last_run: new Date().toISOString(),
     work_email_provider: payload.provider_used,
@@ -46,8 +43,7 @@ export async function POST(req: NextRequest) {
   if (!current.linkedin_url && payload.linkedin_url) updates.linkedin_url = payload.linkedin_url;
   if (!current.personal_email && payload.personal_email) updates.personal_email = payload.personal_email;
 
-  const { error } = await db.from('contacts').update(updates).eq('id', current.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await contacts.updateOne({ sfdc_id: payload.contact_id }, { $set: updates });
 
   // Mirror filled blanks back to Salesforce (standard fields only).
   const sfFields: Record<string, string> = {};

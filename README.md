@@ -13,7 +13,7 @@ endpoints. No n8n required.
 ## Stack
 
 - **Next.js 14** (App Router) on Railway — UI + all API routes
-- **Supabase** (Postgres) — read model & signal store (`supabase/migrations/`)
+- **MongoDB** — read model & signal store (indexes auto-created on first connection)
 - **Salesforce** — system of record (OAuth2 client-credentials, SOQL polling)
 - **LeadIQ** — job/title change detection (champion tracking)
 - **Clay** — waterfall enrichment (webhook-in / webhook-out)
@@ -23,12 +23,12 @@ endpoints. No n8n required.
 ## Data flow
 
 ```
-Railway cron ──► /api/cron/sf-sync         daily 5:00  SF accounts+contacts → Supabase (junk gate flags)
+Railway cron ──► /api/cron/sf-sync         daily 5:00  SF accounts+contacts → MongoDB (junk gate flags)
              ──► /api/cron/leadiq-sync     daily 6:00  sync tracked contacts → poll changes → signals
              ──► /api/cron/industry-intel  weekly Sun  Tavily search → Anthropic briefing → cache
 
 Manual       ──► POST /api/enrich/clay/dispatch   budgeted batch → Clay table webhook
-Clay         ──► POST /api/webhooks/clay-callback fill-only-empty → Supabase + Salesforce
+Clay         ──► POST /api/webhooks/clay-callback fill-only-empty → MongoDB + Salesforce
 
 Signal path: signals table (dedup on signal_key) → SF Task (critical/warning)
              → Slack alert (once per signal, via notification_log)
@@ -38,8 +38,9 @@ Signal path: signals table (dedup on signal_key) → SF Task (critical/warning)
 
 ### 1. Prerequisites
 
-- **Supabase**: create a project, run `supabase/migrations/0001_renewal_intel_core.sql`
-  in the SQL editor.
+- **MongoDB**: add the Railway MongoDB service to the project (or use Atlas) and
+  note its connection string. Collections and unique indexes are created
+  automatically on first connection — no migration step.
 - **Salesforce**: connected app with the OAuth2 client-credentials flow enabled.
 - **Slack**: incoming webhook for `#renewal-intel-alerts`.
 
@@ -92,6 +93,19 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<your-domain>/api/e
 
 Copy `.env.example` → `.env.local`, then `npm install && npm run dev`.
 
+## Auth & users
+
+Email/password auth with MongoDB-backed sessions (httpOnly cookie, 30-day TTL,
+scrypt password hashing — no external auth provider needed):
+
+- `/signup` — the **first account created becomes the workspace admin**
+- `/login`, sign-out from the avatar menu
+- `/profile` — display name + password change
+- `/settings` — per-user preferences (signal email alerts, weekly digest,
+  default view) and workspace integration status
+- All dashboard pages and the signals API require a session; cron/webhook
+  routes use `CRON_SECRET` / `CLAY_CALLBACK_SECRET` instead.
+
 ## Pages
 
 | Route | Purpose |
@@ -100,6 +114,8 @@ Copy `.env.example` → `.env.local`, then `npm install && npm run dev`.
 | `/signals` | Ranked signal feed with dismiss + 👍/👎 relevance feedback |
 | `/contacts` | Enrichment status, validity, quality flags, provenance |
 | `/industry` | Cached weekly industry briefings |
+| `/login` · `/signup` | Auth |
+| `/profile` · `/settings` | User profile and preferences |
 
 ## Credit protection
 

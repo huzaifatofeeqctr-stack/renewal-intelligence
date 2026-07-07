@@ -9,7 +9,7 @@
 
 ## Current system (the app)
 
-- `/api/cron/sf-sync` — daily Salesforce → Supabase sync with junk-gate flagging
+- `/api/cron/sf-sync` — daily Salesforce → MongoDB sync with junk-gate flagging
 - `/api/cron/leadiq-sync` — daily champion tracking poll → signals → SF Task → Slack
 - `/api/cron/industry-intel` — weekly Tavily + Anthropic briefings
 - `POST /api/enrich/clay/dispatch` — manual budgeted Clay batches (100/run, 90-day cooldown)
@@ -17,8 +17,13 @@
 - `PATCH /api/signals/:id` — dismiss + relevance feedback loop
 - Dashboard: `/` accounts by health, `/signals`, `/contacts`, `/industry`
 
-Setup + env vars: see `README.md` and `.env.example`. Schema:
-`supabase/migrations/0001_renewal_intel_core.sql`.
+Setup + env vars: see `README.md` and `.env.example`. Store: MongoDB —
+collections and unique indexes are created automatically on first connection
+(`src/lib/db.ts`).
+
+> **STORE UPDATE (2026-07-07):** persistence moved from Supabase/Postgres to
+> MongoDB. The old SQL migration was removed; the schema now lives as typed
+> document interfaces in `src/lib/types.ts`.
 
 ---
 

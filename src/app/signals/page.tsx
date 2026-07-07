@@ -1,22 +1,21 @@
-import { supabase } from '@/lib/supabase';
-import type { SignalRow } from '@/lib/types';
+import { coll } from '@/lib/db';
+import { requireUser } from '@/lib/require-user';
+import type { SignalDoc } from '@/lib/types';
 import SignalActions from './SignalActions';
 
 export const dynamic = 'force-dynamic';
 
 const SEVERITY_ORDER: Record<string, number> = { critical: 0, warning: 1, info: 2 };
 
+type SignalWithId = SignalDoc & { _id: { toString(): string } };
+
 export default async function SignalsPage() {
-  let signals: SignalRow[] = [];
+  await requireUser();
+  let signals: SignalWithId[] = [];
   let loadError: string | null = null;
   try {
-    const { data, error } = await supabase()
-      .from('signals')
-      .select('*')
-      .order('detected_at', { ascending: false })
-      .limit(200);
-    if (error) throw new Error(error.message);
-    signals = ((data ?? []) as SignalRow[]).sort(
+    const c = await coll<SignalDoc>('signals');
+    signals = ((await c.find({}).sort({ detected_at: -1 }).limit(200).toArray()) as SignalWithId[]).sort(
       (a, b) =>
         Number(a.dismissed) - Number(b.dismissed) ||
         SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] ||
@@ -33,12 +32,12 @@ export default async function SignalsPage() {
         Job changes, title changes, and new stakeholders — ranked by severity. Ratings feed the ICP tuning loop.
       </p>
       {loadError ? (
-        <div className="empty">Could not reach Supabase ({loadError}).</div>
+        <div className="empty">Could not reach MongoDB ({loadError}).</div>
       ) : signals.length === 0 ? (
         <div className="empty">No signals yet — they appear when the LeadIQ sync detects changes.</div>
       ) : (
         signals.map((s) => (
-          <div className={`signal${s.dismissed ? ' dismissed' : ''}`} key={s.id}>
+          <div className={`signal${s.dismissed ? ' dismissed' : ''}`} key={s._id.toString()}>
             <span className={`dot ${s.severity}`} />
             <div className="body">
               <div className="summary">{s.summary}</div>
@@ -49,7 +48,7 @@ export default async function SignalsPage() {
                 {s.sfdc_task_id ? ' · SF task created' : ''}
               </div>
             </div>
-            <SignalActions id={s.id} dismissed={s.dismissed} relevance={s.relevance} />
+            <SignalActions id={s._id.toString()} dismissed={s.dismissed} relevance={s.relevance} />
           </div>
         ))
       )}

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronAuth, logRun } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { coll } from '@/lib/db';
 import { tavilySearch } from '@/lib/tavily';
 import { summarize } from '@/lib/anthropic';
+import type { IndustryIntelDoc } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +17,10 @@ export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req);
   if (denied) return denied;
 
-  const db = supabase();
-  const { data, error } = await db.from('accounts').select('industry').not('industry', 'is', null);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const accounts = await coll('accounts');
+  const intel = await coll<IndustryIntelDoc>('industry_intel');
 
-  const industries = [...new Set((data ?? []).map((r) => r.industry as string))];
+  const industries = (await accounts.distinct('industry', { industry: { $ne: null } })) as string[];
   const model = process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001';
   let processed = 0;
   let errors = 0;
@@ -41,19 +41,20 @@ export async function GET(req: NextRequest) {
       ].join('\n');
       const briefing = await summarize(SYSTEM_PROMPT, prompt);
 
-      const { error: upsertError } = await db.from('industry_intel').upsert(
+      await intel.updateOne(
+        { industry },
         {
-          industry,
-          briefing_summary: briefing,
-          sources: search.results.map((r) => ({ title: r.title, url: r.url })),
-          tavily_query: query,
-          model_used: model,
-          generated_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          $set: {
+            briefing_summary: briefing,
+            sources: search.results.map((r) => ({ title: r.title, url: r.url })),
+            tavily_query: query,
+            model_used: model,
+            generated_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
         },
-        { onConflict: 'industry' }
+        { upsert: true }
       );
-      if (upsertError) throw new Error(upsertError.message);
       processed++;
     } catch (e) {
       // One industry failing must not block the rest; the previous briefing stays.
