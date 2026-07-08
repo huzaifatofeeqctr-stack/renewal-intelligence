@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { coll } from '@/lib/db';
 import { requireUser } from '@/lib/require-user';
 import type { AccountDoc, SignalDoc } from '@/lib/types';
@@ -94,7 +95,7 @@ export default async function AccountsPage({
         <>
           <div className="grid">
             {visible.map((a) => (
-              <div className="card" key={a.sfdc_id}>
+              <Link href={`/accounts/${a.sfdc_id}`} className="card card-link" key={a.sfdc_id}>
                 <span className={`score ${scoreClass(a.computedScore)}`}>{a.computedScore}</span>
                 <h3>{a.name}</h3>
                 <div className="meta">
@@ -107,7 +108,7 @@ export default async function AccountsPage({
                   {a.info > 0 && <span className="badge info">{a.info} info</span>}
                   {a.critical + a.warning + a.info === 0 && <span className="badge ok">healthy</span>}
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
           <Pagination basePath="/" q={q} page={current} totalPages={totalPages} totalItems={all.length} />
