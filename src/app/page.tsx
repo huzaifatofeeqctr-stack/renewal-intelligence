@@ -1,8 +1,11 @@
 import { coll } from '@/lib/db';
 import { requireUser } from '@/lib/require-user';
 import type { AccountDoc, SignalDoc } from '@/lib/types';
+import { SearchBar, Pagination, parsePage, escapeRegex } from './ListControls';
 
 export const dynamic = 'force-dynamic';
+
+const PAGE_SIZE = 24;
 
 interface AccountCard extends AccountDoc {
   critical: number;
@@ -11,9 +14,20 @@ interface AccountCard extends AccountDoc {
   computedScore: number;
 }
 
-async function loadAccounts(): Promise<AccountCard[]> {
+async function loadAccounts(q: string): Promise<AccountCard[]> {
+  const filter = q
+    ? {
+        $or: [
+          { name: { $regex: escapeRegex(q), $options: 'i' } },
+          { industry: { $regex: escapeRegex(q), $options: 'i' } },
+          { owner_email: { $regex: escapeRegex(q), $options: 'i' } },
+          { website: { $regex: escapeRegex(q), $options: 'i' } },
+        ],
+      }
+    : {};
+
   const [accounts, signals] = await Promise.all([
-    coll<AccountDoc>('accounts').then((c) => c.find({}).toArray()),
+    coll<AccountDoc>('accounts').then((c) => c.find(filter).limit(5000).toArray()),
     coll<SignalDoc>('signals').then((c) =>
       c
         .find({ dismissed: false })
@@ -36,7 +50,7 @@ async function loadAccounts(): Promise<AccountCard[]> {
       const computedScore = Math.max(0, 100 - c.critical * 40 - c.warning * 15 - c.info * 5);
       return { ...a, ...c, computedScore };
     })
-    .sort((a, b) => a.computedScore - b.computedScore || b.critical - a.critical);
+    .sort((a, b) => a.computedScore - b.computedScore || b.critical - a.critical || a.name.localeCompare(b.name));
 }
 
 function scoreClass(score: number): string {
@@ -45,45 +59,59 @@ function scoreClass(score: number): string {
   return 'bad';
 }
 
-export default async function AccountsPage() {
+export default async function AccountsPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
   await requireUser();
-  let accounts: AccountCard[] = [];
+  const { q, page } = parsePage(searchParams);
+
+  let all: AccountCard[] = [];
   let loadError: string | null = null;
   try {
-    accounts = await loadAccounts();
+    all = await loadAccounts(q);
   } catch (e) {
     loadError = e instanceof Error ? e.message : 'failed to load';
   }
+
+  const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  const current = Math.min(page, totalPages);
+  const visible = all.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
     <main>
       <h1>Accounts</h1>
       <p className="subtitle">Sorted by CRM health — accounts with open critical signals first.</p>
+      <SearchBar basePath="/" q={q} placeholder="Search by account, industry, owner, or domain…" />
       {loadError ? (
+        <div className="empty">Could not reach MongoDB ({loadError}).</div>
+      ) : all.length === 0 ? (
         <div className="empty">
-          Could not reach MongoDB ({loadError}). Set MONGODB_URI and run the sf-sync cron.
+          {q ? `No accounts match “${q}”.` : 'No accounts yet — run /api/cron/sf-sync to pull them from Salesforce.'}
         </div>
-      ) : accounts.length === 0 ? (
-        <div className="empty">No accounts yet — run /api/cron/sf-sync to pull them from Salesforce.</div>
       ) : (
-        <div className="grid">
-          {accounts.map((a) => (
-            <div className="card" key={a.sfdc_id}>
-              <span className={`score ${scoreClass(a.computedScore)}`}>{a.computedScore}</span>
-              <h3>{a.name}</h3>
-              <div className="meta">
-                {a.industry ?? 'No industry'} · {a.owner_email ?? 'unassigned'}
-                {a.renewal_date ? ` · renews ${a.renewal_date}` : ''}
+        <>
+          <div className="grid">
+            {visible.map((a) => (
+              <div className="card" key={a.sfdc_id}>
+                <span className={`score ${scoreClass(a.computedScore)}`}>{a.computedScore}</span>
+                <h3>{a.name}</h3>
+                <div className="meta">
+                  {a.industry ?? 'No industry'} · {a.owner_email ?? 'unassigned'}
+                  {a.renewal_date ? ` · renews ${a.renewal_date}` : ''}
+                </div>
+                <div className="badges">
+                  {a.critical > 0 && <span className="badge critical">{a.critical} critical</span>}
+                  {a.warning > 0 && <span className="badge warning">{a.warning} warning</span>}
+                  {a.info > 0 && <span className="badge info">{a.info} info</span>}
+                  {a.critical + a.warning + a.info === 0 && <span className="badge ok">healthy</span>}
+                </div>
               </div>
-              <div className="badges">
-                {a.critical > 0 && <span className="badge critical">{a.critical} critical</span>}
-                {a.warning > 0 && <span className="badge warning">{a.warning} warning</span>}
-                {a.info > 0 && <span className="badge info">{a.info} info</span>}
-                {a.critical + a.warning + a.info === 0 && <span className="badge ok">healthy</span>}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <Pagination basePath="/" q={q} page={current} totalPages={totalPages} totalItems={all.length} />
+        </>
       )}
     </main>
   );

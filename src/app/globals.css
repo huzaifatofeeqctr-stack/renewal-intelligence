@@ -207,3 +207,40 @@ tr:hover td { background: var(--surface); }
   padding: 10px 14px; font-size: 14px; font-weight: 600;
 }
 .btn-google:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ---- search + pagination ---- */
+
+.toolbar { display: flex; gap: 8px; margin-bottom: 18px; max-width: 560px; }
+.search-input {
+  flex: 1;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 12px; font-size: 14px; outline: none;
+}
+.search-input:focus { border-color: var(--info); }
+.btn-secondary {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.btn-secondary:hover { border-color: var(--info); color: var(--info); }
+.btn-clear {
+  display: inline-flex; align-items: center;
+  color: var(--muted); font-size: 13px; padding: 0 8px;
+}
+.btn-clear:hover { color: var(--text); }
+
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  margin-top: 20px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.page-info { color: var(--muted); font-size: 12.5px; }
+.page-links { display: flex; gap: 4px; }
+.page-links a, .page-current {
+  padding: 5px 11px; border-radius: 6px; font-size: 13px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.page-links a:hover { color: var(--text); border-color: var(--muted); }
+.page-current { color: #0b0d11; background: var(--info); border-color: var(--info); font-weight: 700; }
