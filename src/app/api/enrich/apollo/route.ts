@@ -9,6 +9,11 @@ import type { ContactDoc } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 const MATCH_BUDGET = 100; // people/match calls per run — each costs 1 Apollo credit
+const PACE_MS = 1500; // Apollo caps people/match at 50/min — stay safely under
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // POST (cron auth): enriches incomplete, non-junk contacts via Apollo
 // people/match in renewal-priority order. Fill-only-empty writeback to Mongo +
@@ -55,12 +60,24 @@ async function run(req: NextRequest) {
     try {
       const accountDomain =
         normalizeDomain(c.account_website) || (c.email ? c.email.split('@')[1] ?? '' : '');
-      const person = await matchPerson({
+      const matchQuery = {
         firstName: c.first_name ?? undefined,
-        lastName: c.last_name ??  undefined,
+        lastName: c.last_name ?? undefined,
         domain: accountDomain || undefined,
         email: c.email ?? undefined,
-      });
+      };
+      let person;
+      try {
+        person = await matchPerson(matchQuery);
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('429')) {
+          await sleep(30000); // rate-limit window — wait and retry once
+          person = await matchPerson(matchQuery);
+        } else {
+          throw e;
+        }
+      }
+      await sleep(PACE_MS);
 
       const updates: Partial<ContactDoc> = {
         enriched_at: now,
