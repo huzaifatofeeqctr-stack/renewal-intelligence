@@ -1,6 +1,7 @@
 import { coll } from '@/lib/db';
 import { requireUser } from '@/lib/require-user';
 import type { IndustryIntelDoc } from '@/lib/types';
+import IndustryGrid from './IndustryGrid';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,32 +19,20 @@ export default async function IndustryPage() {
   return (
     <main>
       <h1>Industry Intel</h1>
-      <p className="subtitle">Weekly Tavily + Anthropic briefings per account industry — always served from cache.</p>
+      <p className="subtitle">Weekly Tavily + Anthropic briefings per account industry — click a card for the full briefing.</p>
       {loadError ? (
         <div className="empty">Could not reach MongoDB ({loadError}).</div>
       ) : briefings.length === 0 ? (
         <div className="empty">No briefings yet — the weekly industry-intel cron populates this.</div>
       ) : (
-        briefings.map((b) => (
-          <div className="briefing" key={b.industry}>
-            <h3>
-              {b.industry}{' '}
-              {b.generated_at && (
-                <span className="badge muted">refreshed {new Date(b.generated_at).toLocaleDateString()}</span>
-              )}
-            </h3>
-            <p>{b.briefing_summary ?? 'No briefing generated.'}</p>
-            {Array.isArray(b.sources) && b.sources.length > 0 && (
-              <div className="sources">
-                {b.sources.map((s, i) => (
-                  <a key={i} href={s.url} target="_blank" rel="noreferrer">
-                    {s.title || s.url}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        ))
+        <IndustryGrid
+          briefings={briefings.map((b) => ({
+            industry: b.industry,
+            summary: b.briefing_summary ?? 'No briefing generated.',
+            generated_at: b.generated_at,
+            sources: Array.isArray(b.sources) ? b.sources.map((s) => ({ title: s.title, url: s.url })) : [],
+          }))}
+        />
       )}
     </main>
   );

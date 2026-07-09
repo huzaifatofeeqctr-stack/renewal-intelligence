@@ -24,6 +24,7 @@ export interface SessionDoc {
   user_email: string;
   created_at: string;
   expires_at: string;
+  expireAt?: Date; // Date-typed copy of expires_at for the Mongo TTL index
 }
 
 export type SafeUser = Omit<UserDoc, 'password_hash'>;
@@ -127,6 +128,7 @@ export async function createSession(email: string): Promise<void> {
     user_email: email.toLowerCase(),
     created_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
+    expireAt: new Date(Date.now() + SESSION_TTL_MS),
   });
   cookies().set(SESSION_COOKIE, token, {
     httpOnly: true,

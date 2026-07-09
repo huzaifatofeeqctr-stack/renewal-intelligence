@@ -20,6 +20,11 @@ interface SfContact {
   AccountId: string | null;
 }
 
+interface SfOpportunity {
+  AccountId: string;
+  CloseDate: string;
+}
+
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -50,6 +55,22 @@ export async function importAccounts(
     );
     const accountById = new Map(sfAccounts.map((a) => [a.Id, a]));
 
+    // Renewal date = earliest open Opportunity close date per account.
+    // Tolerated failure: the integration user may lack Opportunity access.
+    const renewalByAccount = new Map<string, string>();
+    try {
+      const opps = await soql<SfOpportunity>(
+        `SELECT AccountId, CloseDate FROM Opportunity WHERE AccountId IN (${idList(ids)}) AND IsClosed = false ORDER BY CloseDate ASC`
+      );
+      for (const o of opps) {
+        if (o.AccountId && o.CloseDate && !renewalByAccount.has(o.AccountId)) {
+          renewalByAccount.set(o.AccountId, o.CloseDate);
+        }
+      }
+    } catch (e) {
+      console.warn('Opportunity query failed (renewal dates skipped):', e instanceof Error ? e.message : e);
+    }
+
     if (sfAccounts.length > 0) {
       const res = await accountsColl.bulkWrite(
         sfAccounts.map((a) => ({
@@ -61,9 +82,10 @@ export async function importAccounts(
                 website: a.Website,
                 industry: a.Industry,
                 owner_email: a.Owner?.Email ?? null,
+                renewal_date: renewalByAccount.get(a.Id) ?? null,
                 updated_at: now,
               },
-              $setOnInsert: { sfdc_id: a.Id, renewal_date: null, stakeholders_checked_at: null },
+              $setOnInsert: { sfdc_id: a.Id, stakeholders_checked_at: null },
             },
             upsert: true,
           },
@@ -91,6 +113,7 @@ export async function importAccounts(
                 account_name: account?.Name ?? null,
                 account_owner_email: account?.Owner?.Email ?? null,
                 account_website: account?.Website ?? null,
+                account_renewal_date: c.AccountId ? renewalByAccount.get(c.AccountId) ?? null : null,
                 first_name: c.FirstName,
                 last_name: c.LastName,
                 email: c.Email?.toLowerCase() ?? null,
@@ -101,7 +124,6 @@ export async function importAccounts(
               },
               $setOnInsert: {
                 sfdc_id: c.Id,
-                account_renewal_date: null,
                 work_email: null,
                 email_valid: 'unknown' as const,
                 personal_email: null,

@@ -581,3 +581,50 @@ tr:hover td { background: var(--surface); }
   content: ''; position: absolute; top: calc(100% + 3px); right: 14px; z-index: 41;
   border: 5px solid transparent; border-bottom-color: var(--border);
 }
+
+/* ── activity page ─────────────────────────────────────────────────────── */
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+.stat-tile {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;
+}
+.stat-tile strong { font-size: 22px; }
+.stat-tile small { color: var(--muted); }
+.stat-tile.bad strong { color: var(--critical); }
+.table-scroll { overflow-x: auto; }
+.notes-cell { color: var(--muted); font-size: 12px; max-width: 340px; }
+
+/* ── signal inbox status badges ────────────────────────────────────────── */
+.badge.status-new { color: var(--info); border-color: var(--info); }
+.badge.status-acknowledged { color: var(--warning); border-color: var(--warning); }
+.badge.status-actioned { color: var(--ok); border-color: var(--ok); }
+.badge.status-dismissed { color: var(--muted); border-color: var(--border); }
+.signal .summary .badge { margin-left: 8px; vertical-align: middle; }
+
+/* ── industry intel cards + briefing modal ─────────────────────────────── */
+.intel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 16px; }
+.intel-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px; cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.intel-card:hover { border-color: var(--info); transform: translateY(-2px); }
+.intel-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.intel-card-head strong { font-size: 15px; }
+.intel-preview {
+  color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.intel-card-foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: auto; }
+.intel-more { color: var(--info); }
+.intel-modal { max-width: 720px; }
+.intel-briefing { line-height: 1.65; font-size: 14px; }
+.intel-briefing h4 { margin: 14px 0 6px; font-size: 15px; }
+.intel-briefing p { margin: 0 0 12px; }
+.intel-briefing ul { margin: 0 0 12px 18px; }
+.intel-sources { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 10px; }
+.intel-sources h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.intel-sources ol { margin: 0 0 8px 18px; padding: 0; }
+.intel-sources li { margin-bottom: 6px; font-size: 13px; }
+.intel-sources a { color: var(--info); text-decoration: none; }
+.intel-sources a:hover { text-decoration: underline; }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import IcpTuning from './IcpTuning';
 
 interface Ws {
   sf_sync_enabled: boolean;
@@ -10,6 +11,12 @@ interface Ws {
   stakeholder_reveal_budget: number;
   stakeholder_accounts_per_run: number;
   icp_titles: string;
+  champion_watch_enabled: boolean;
+  champion_watch_cadence_days: number;
+  champion_watch_budget: number;
+  champion_watch_hour: number;
+  slack_mode: string;
+  slack_digest_hour: number;
   timezone: string;
   sf_sync_hour: number;
   stakeholder_hour: number;
@@ -204,6 +211,48 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
           </label>
           <label className="setting-row">
             <span>
+              <strong>Champion watch</strong>
+              <small>Re-verify complete contacts on a cadence so job changes still surface</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={ws.champion_watch_enabled}
+              disabled={busy}
+              onChange={(e) => save({ champion_watch_enabled: e.target.checked })}
+            />
+          </label>
+          <label className="setting-row">
+            <span>
+              <strong>Watch cadence</strong>
+              <small>Days between re-checks of each contact</small>
+            </span>
+            <select
+              value={ws.champion_watch_cadence_days}
+              disabled={busy}
+              onChange={(e) => save({ champion_watch_cadence_days: Number(e.target.value) })}
+            >
+              {[14, 30, 60, 90].map((n) => (
+                <option key={n} value={n}>{n} days</option>
+              ))}
+            </select>
+          </label>
+          <label className="setting-row">
+            <span>
+              <strong>Watch budget per run</strong>
+              <small>Apollo match credits the daily watch run may spend</small>
+            </span>
+            <select
+              value={ws.champion_watch_budget}
+              disabled={busy}
+              onChange={(e) => save({ champion_watch_budget: Number(e.target.value) })}
+            >
+              {[5, 10, 20, 30].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+          <label className="setting-row">
+            <span>
               <strong>Accounts scanned per run</strong>
               <small>Discovery rotates through the book at this pace</small>
             </span>
@@ -297,6 +346,17 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             }}
           />
         </div>
+        <IcpTuning
+          icpTitles={ws.icp_titles}
+          busy={busy}
+          onRemoveTitle={(title) => {
+            const remaining = ws.icp_titles
+              .split(',')
+              .map((t) => t.trim())
+              .filter((t) => t && t.toLowerCase() !== title.toLowerCase());
+            if (remaining.length > 0) save({ icp_titles: remaining.join(', ') });
+          }}
+        />
       </div>
       )}
 
@@ -340,6 +400,17 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
           </label>
           <label className="setting-row">
             <span>
+              <strong>Champion watch time</strong>
+              <small>Daily re-verification of complete contacts</small>
+            </span>
+            <select value={ws.champion_watch_hour} disabled={busy} onChange={(e) => save({ champion_watch_hour: Number(e.target.value) })}>
+              {HOURS.map((h) => (
+                <option key={h} value={h}>{hourLabel(h)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="setting-row">
+            <span>
               <strong>Industry intel refresh</strong>
               <small>Weekly Tavily + Anthropic briefings</small>
             </span>
@@ -363,6 +434,31 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
       {section === 'slack-templates' && (
       <div className="panel" id="slack-templates">
         <h2>Slack alert templates</h2>
+        <div className="settings-rows">
+          <label className="setting-row">
+            <span>
+              <strong>Delivery mode</strong>
+              <small>Instant pings one message per signal; digest batches everything into one daily summary grouped by owner</small>
+            </span>
+            <select value={ws.slack_mode} disabled={busy} onChange={(e) => save({ slack_mode: e.target.value })}>
+              <option value="instant">instant</option>
+              <option value="digest">daily digest</option>
+            </select>
+          </label>
+          {ws.slack_mode === 'digest' && (
+            <label className="setting-row">
+              <span>
+                <strong>Digest time</strong>
+                <small>When the daily summary is sent</small>
+              </span>
+              <select value={ws.slack_digest_hour} disabled={busy} onChange={(e) => save({ slack_digest_hour: Number(e.target.value) })}>
+                {HOURS.map((h) => (
+                  <option key={h} value={h}>{hourLabel(h)}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
         <p className="template-hint">
           Placeholders: {'{contact} {account} {previous} {new} {owner} {date} {summary}'} — Slack markdown (*bold*,
           :emoji:) supported.

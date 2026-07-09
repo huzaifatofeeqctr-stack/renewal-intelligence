@@ -30,6 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/signals">Signals</Link>
                 <Link href="/contacts">Contacts</Link>
                 <Link href="/industry">Industry Intel</Link>
+                <Link href="/activity">Activity</Link>
                 <Link href="/import">Import</Link>
               </nav>
               <div className="side-user">

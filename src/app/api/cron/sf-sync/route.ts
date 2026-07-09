@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error('sf-sync failed:', e);
+    const { notifyOps } = await import('@/lib/slack');
+    await notifyOps(`*sf-sync* crashed: ${message.slice(0, 400)}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

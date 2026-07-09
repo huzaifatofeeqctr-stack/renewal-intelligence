@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error('apollo-stakeholders failed:', e);
+    const { notifyOps } = await import('@/lib/slack');
+    await notifyOps(`*apollo-stakeholders* crashed: ${message.slice(0, 400)}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

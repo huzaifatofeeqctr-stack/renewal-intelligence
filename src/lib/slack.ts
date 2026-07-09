@@ -12,6 +12,38 @@ function render(template: string, s: NewSignal): string {
     .replaceAll('{summary}', s.summary);
 }
 
+// Posts arbitrary text to the alerts webhook (used by the daily digest).
+export async function sendSlackText(text: string): Promise<boolean> {
+  const url = process.env.SLACK_WEBHOOK_URL;
+  if (!url) {
+    console.warn('SLACK_WEBHOOK_URL not set — skipping notification');
+    return false;
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) console.error('Slack send failed:', res.status, await res.text());
+  return res.ok;
+}
+
+// Operational alerting: failed runs ping the ops webhook (falls back to the
+// alerts webhook). Never throws — an alerting failure must not fail the run.
+export async function notifyOps(message: string): Promise<void> {
+  const url = process.env.SLACK_OPS_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: `:rotating_light: *Renewal Intelligence — run problem*\n${message}` }),
+    });
+  } catch (e) {
+    console.error('ops alert failed:', e);
+  }
+}
+
 export async function notifySlack(signal: NewSignal): Promise<boolean> {
   const url = process.env.SLACK_WEBHOOK_URL;
   if (!url) {

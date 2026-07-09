@@ -10,6 +10,12 @@ export interface WorkspaceSettings {
   stakeholder_reveal_budget: number; // reveals (credits) per discovery run
   stakeholder_accounts_per_run: number; // accounts scanned per discovery run
   icp_titles: string; // comma-separated titles for stakeholder discovery
+  // Champion watch: periodically re-verify already-complete contacts so job
+  // changes surface even when nothing is missing in the CRM.
+  champion_watch_enabled: boolean;
+  champion_watch_cadence_days: number; // re-check each contact this often
+  champion_watch_budget: number; // Apollo match credits per watch run
+  champion_watch_hour: number; // 0-23 local hour for the daily watch run
   // Scheduling: Railway crons fire hourly with ?scheduled=1; each job only
   // actually runs when the current time in `timezone` matches its setting.
   timezone: string; // IANA zone, e.g. 'America/New_York'
@@ -26,6 +32,10 @@ export interface WorkspaceSettings {
   // Extra title equivalences, one pair per line: "Co-Founder = Founder".
   // Pairs listed here never fire a title-change signal.
   title_equivalences: string;
+  // 'instant' pings Slack per signal; 'digest' batches un-notified signals
+  // into one daily message at slack_digest_hour.
+  slack_mode: 'instant' | 'digest';
+  slack_digest_hour: number;
   // Slack alert templates. Placeholders: {contact} {account} {previous} {new}
   // {owner} {date} {summary}
   slack_template_new_company: string;
@@ -44,6 +54,12 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   stakeholder_accounts_per_run: 15,
   icp_titles:
     'Chief Marketing Officer, CMO, VP Marketing, VP Ecommerce, VP of Digital, Director of Ecommerce, Head of Retention, Director of Retention, Director of Lifecycle',
+  champion_watch_enabled: true,
+  champion_watch_cadence_days: 30,
+  champion_watch_budget: 20,
+  champion_watch_hour: 8,
+  slack_mode: 'instant',
+  slack_digest_hour: 16,
   timezone: 'UTC',
   sf_sync_hour: 5,
   stakeholder_hour: 7,
@@ -120,6 +136,17 @@ export async function updateWorkspaceSettings(
     clean.industry_intel_day = Math.min(6, Math.max(0, Math.round(patch.industry_intel_day)));
   if (typeof patch.industry_intel_hour === 'number')
     clean.industry_intel_hour = Math.min(23, Math.max(0, Math.round(patch.industry_intel_hour)));
+  if (typeof patch.champion_watch_enabled === 'boolean')
+    clean.champion_watch_enabled = patch.champion_watch_enabled;
+  if (typeof patch.champion_watch_cadence_days === 'number')
+    clean.champion_watch_cadence_days = Math.min(365, Math.max(7, Math.round(patch.champion_watch_cadence_days)));
+  if (typeof patch.champion_watch_budget === 'number')
+    clean.champion_watch_budget = Math.min(100, Math.max(0, Math.round(patch.champion_watch_budget)));
+  if (typeof patch.champion_watch_hour === 'number')
+    clean.champion_watch_hour = Math.min(23, Math.max(0, Math.round(patch.champion_watch_hour)));
+  if (patch.slack_mode === 'instant' || patch.slack_mode === 'digest') clean.slack_mode = patch.slack_mode;
+  if (typeof patch.slack_digest_hour === 'number')
+    clean.slack_digest_hour = Math.min(23, Math.max(0, Math.round(patch.slack_digest_hour)));
   for (const key of ['slack_template_new_company', 'slack_template_new_title', 'slack_template_new_stakeholder'] as const) {
     const v = patch[key];
     if (typeof v === 'string' && v.trim()) clean[key] = v.trim().slice(0, 1500);

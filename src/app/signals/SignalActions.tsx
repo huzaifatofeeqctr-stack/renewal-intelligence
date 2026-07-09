@@ -3,13 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+// Inbox workflow: new → acknowledged → actioned; dismiss is "not relevant".
 export default function SignalActions({
   id,
-  dismissed,
+  status,
   relevance,
 }: {
   id: string;
-  dismissed: boolean;
+  status: string;
   relevance: string | null;
 }) {
   const router = useRouter();
@@ -40,13 +41,29 @@ export default function SignalActions({
         disabled={busy}
         className={relevance === 'not_helpful' ? 'active' : ''}
         onClick={() => patch({ relevance: 'not_helpful' })}
-        title="Mark as not helpful"
+        title="Mark as not helpful — repeated 👎 tune the ICP list"
       >
         👎
       </button>
-      <button disabled={busy} onClick={() => patch({ dismissed: !dismissed })}>
-        {dismissed ? 'Restore' : 'Dismiss'}
-      </button>
+      {status === 'new' && (
+        <button disabled={busy} onClick={() => patch({ status: 'acknowledged' })} title="I've seen this">
+          Ack
+        </button>
+      )}
+      {(status === 'new' || status === 'acknowledged') && (
+        <button disabled={busy} onClick={() => patch({ status: 'actioned' })} title="I acted on this">
+          Actioned
+        </button>
+      )}
+      {status === 'dismissed' ? (
+        <button disabled={busy} onClick={() => patch({ status: 'new' })}>
+          Restore
+        </button>
+      ) : (
+        <button disabled={busy} onClick={() => patch({ status: 'dismissed' })} title="Not relevant — hide it">
+          Dismiss
+        </button>
+      )}
     </div>
   );
 }

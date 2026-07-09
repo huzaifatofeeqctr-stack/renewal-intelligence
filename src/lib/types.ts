@@ -1,5 +1,8 @@
 export type Severity = 'critical' | 'warning' | 'info';
 
+// Inbox workflow for signals: new → acknowledged → actioned; dismissed is terminal.
+export type SignalStatus = 'new' | 'acknowledged' | 'actioned' | 'dismissed';
+
 export type SignalType =
   | 'job_change_new_company'
   | 'job_change_new_title'
@@ -38,6 +41,7 @@ export interface ContactDoc {
   junk_reason: string | null;
   enriched_at: string | null;
   enrichment_provider: string | null;
+  watch_checked_at?: string | null; // champion watch: last re-verification
   updated_at: string;
 }
 
@@ -58,8 +62,27 @@ export interface SignalDoc {
   sfdc_task_id: string | null;
   dismissed: boolean;
   dismissed_at: string | null;
+  // status supersedes the dismissed boolean but both are kept in sync.
+  status?: SignalStatus;
+  status_changed_at?: string | null;
+  status_changed_by?: string | null;
   relevance: 'helpful' | 'not_helpful' | 'inaccurate' | null;
   created_at: string;
+}
+
+// Background job queue: enqueued work the hourly jobs cron picks up, so long
+// enrichment backlogs drain without a browser request staying open.
+export interface JobDoc {
+  type: 'enrich' | 'champion_watch';
+  status: 'pending' | 'running' | 'done' | 'failed';
+  params: { account_sfdc_id?: string | null };
+  created_at: string;
+  created_by: string;
+  started_at: string | null;
+  finished_at: string | null;
+  attempts: number;
+  result: string | null;
+  error: string | null;
 }
 
 export interface IndustryIntelDoc {

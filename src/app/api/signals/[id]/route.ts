@@ -5,8 +5,13 @@ import { getSessionUser } from '@/lib/authn';
 
 export const dynamic = 'force-dynamic';
 
-// PATCH /api/signals/:id  { dismissed?: boolean, relevance?: 'helpful' | 'not_helpful' | 'inaccurate' }
-// Powers the dashboard dismiss action and the feedback loop.
+const STATUSES = ['new', 'acknowledged', 'actioned', 'dismissed'] as const;
+
+// PATCH /api/signals/:id
+//   { status?: 'new' | 'acknowledged' | 'actioned' | 'dismissed',
+//     dismissed?: boolean, relevance?: 'helpful' | 'not_helpful' | 'inaccurate' }
+// Powers the inbox workflow and the feedback loop. `status` and the legacy
+// `dismissed` boolean are kept in sync whichever one the caller sends.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -16,14 +21,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const body = (await req.json().catch(() => ({}))) as {
     dismissed?: boolean;
+    status?: string;
     relevance?: 'helpful' | 'not_helpful' | 'inaccurate';
   };
 
+  const now = new Date().toISOString();
   const updates: Record<string, unknown> = {};
-  if (typeof body.dismissed === 'boolean') {
+  if (typeof body.status === 'string' && (STATUSES as readonly string[]).includes(body.status)) {
+    updates.status = body.status;
+    updates.status_changed_at = now;
+    updates.status_changed_by = user.email;
+    updates.dismissed = body.status === 'dismissed';
+    updates.dismissed_at = body.status === 'dismissed' ? now : null;
+    updates.dismissed_by = body.status === 'dismissed' ? user.email : null;
+  } else if (typeof body.dismissed === 'boolean') {
     updates.dismissed = body.dismissed;
-    updates.dismissed_at = body.dismissed ? new Date().toISOString() : null;
+    updates.dismissed_at = body.dismissed ? now : null;
     updates.dismissed_by = body.dismissed ? user.email : null;
+    updates.status = body.dismissed ? 'dismissed' : 'new';
+    updates.status_changed_at = now;
+    updates.status_changed_by = user.email;
   }
   if (body.relevance && ['helpful', 'not_helpful', 'inaccurate'].includes(body.relevance)) {
     updates.relevance = body.relevance;

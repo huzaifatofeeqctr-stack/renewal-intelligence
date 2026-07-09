@@ -10,6 +10,29 @@ function headers(): Record<string, string> {
   return { 'x-api-key': key, 'Content-Type': 'application/json' };
 }
 
+// ── adaptive rate limiting ────────────────────────────────────────────────
+// Apollo returns per-minute/hour/day quota headers on every response; pacing
+// adapts to what's actually left instead of a fixed sleep.
+
+let minuteLeft: number | null = null;
+let hourLeft: number | null = null;
+
+function readRateHeaders(res: Response): void {
+  const minute = res.headers.get('x-minute-requests-left') ?? res.headers.get('x-rate-limit-remaining');
+  const hourly = res.headers.get('x-hourly-requests-left');
+  if (minute != null && minute !== '') minuteLeft = Number(minute);
+  if (hourly != null && hourly !== '') hourLeft = Number(hourly);
+}
+
+// How long to wait before the NEXT Apollo call. With no header data, fall
+// back to the caller's default. Nearly-exhausted minute window → wait it out.
+export function apolloPaceMs(defaultMs = 1500): number {
+  if (hourLeft !== null && hourLeft <= 1) return 5 * 60 * 1000; // hourly cap hit — long pause
+  if (minuteLeft === null || Number.isNaN(minuteLeft)) return defaultMs;
+  if (minuteLeft <= 1) return 61 * 1000; // let the minute window reset
+  return Math.max(250, Math.min(defaultMs * 4, Math.ceil(60000 / minuteLeft)));
+}
+
 export const DEFAULT_ICP_TITLES = [
   'Chief Marketing Officer',
   'CMO',
@@ -46,6 +69,7 @@ export async function searchPeopleByDomain(domain: string, titles: string[]): Pr
       per_page: 10,
     }),
   });
+  readRateHeaders(res);
   if (!res.ok) throw new Error(`Apollo search failed: ${res.status} ${await res.text()}`);
   const data = (await res.json()) as { people?: Record<string, unknown>[] };
   return (data.people ?? []).map((p) => ({
@@ -95,6 +119,7 @@ export async function matchPerson(query: {
     headers: headers(),
     body: JSON.stringify(body),
   });
+  readRateHeaders(res);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Apollo match failed: ${res.status} ${await res.text()}`);
   const data = (await res.json()) as { person?: Record<string, unknown> | null };

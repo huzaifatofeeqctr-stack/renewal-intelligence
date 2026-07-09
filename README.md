@@ -23,15 +23,20 @@ endpoints. No n8n required.
 ## Data flow
 
 ```
-Railway cron ──► /api/cron/sf-sync              daily 5:00  SF accounts+contacts → MongoDB (junk gate flags)
+Railway cron ──► /api/cron/sf-sync              daily 5:00  SF accounts+contacts+open-Opportunity renewal dates → MongoDB
              ──► /api/cron/apollo-stakeholders  daily 7:00  ICP title search per account → diff vs CRM → new_stakeholder signals
+             ──► /api/cron/champion-watch       daily 8:00  re-verify complete contacts on a cadence → job/title-change signals
+             ──► /api/cron/slack-digest         daily 16:00 one Slack summary of un-notified signals (digest mode only)
+             ──► /api/cron/jobs                 hourly      drains the background job queue (enrichment backlogs)
              ──► /api/cron/industry-intel       weekly Sun  Tavily search → Anthropic briefing → cache
 
-Manual       ──► POST /api/enrich/apollo   budgeted batch: Apollo people/match → fill-only-empty
-                                           → MongoDB + Salesforce; title/company diffs emit job-change signals
+Manual       ──► POST /api/enrich/apollo   budgeted batch: Apollo people/match → fill-only-empty → MongoDB
+                                           title/company diffs emit job-change signals; full batches
+                                           queue a follow-up job so the backlog drains itself
 
-Signal path: signals table (dedup on signal_key) → SF Task (critical/warning)
-             → Slack alert (once per signal, via notification_log)
+Signal path: signals collection (dedup on signal_key, inbox states new/ack/actioned/dismissed)
+             → Slack alert instantly OR via the daily digest (once per signal, via notification_log)
+             Salesforce is READ-ONLY — nothing is ever written back.
 ```
 
 ## Deploying on Railway
@@ -56,13 +61,16 @@ Signal path: signals table (dedup on signal_key) → SF Task (critical/warning)
 ### 3. Cron services (one per schedule)
 
 Railway runs crons as scheduled services: the service starts on the schedule,
-runs its command, and must exit. Create **three more services from the same
+runs its command, and must exit. Create **these services from the same
 repo**, each with:
 
 | Service | Custom start command | Cron schedule (service settings) |
 |---|---|---|
 | `cron-sf-sync` | `sh scripts/run-cron.sh "/api/cron/sf-sync?scheduled=1"` | `0 * * * *` (hourly) |
 | `cron-apollo-stakeholders` | `sh scripts/run-cron.sh "/api/cron/apollo-stakeholders?scheduled=1"` | `0 * * * *` (hourly) |
+| `cron-champion-watch` | `sh scripts/run-cron.sh "/api/cron/champion-watch?scheduled=1"` | `0 * * * *` (hourly) |
+| `cron-slack-digest` | `sh scripts/run-cron.sh "/api/cron/slack-digest?scheduled=1"` | `0 * * * *` (hourly) |
+| `cron-jobs` | `sh scripts/run-cron.sh "/api/cron/jobs"` | `0 * * * *` (hourly) |
 | `cron-industry-intel` | `sh scripts/run-cron.sh "/api/cron/industry-intel?scheduled=1"` | `0 * * * *` (hourly) |
 
 Crons fire hourly, but each job only executes at the time-of-day (and

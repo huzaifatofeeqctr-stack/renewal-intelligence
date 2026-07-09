@@ -42,4 +42,8 @@ export async function logRun(entry: {
   } catch (e) {
     console.error('run log insert failed:', e);
   }
+  if (entry.errors > 0) {
+    const { notifyOps } = await import('./slack');
+    await notifyOps(`*${entry.workflow_name}* finished with ${entry.errors} error(s).\n${entry.notes}`);
+  }
 }

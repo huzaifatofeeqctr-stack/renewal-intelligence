@@ -94,19 +94,23 @@ export default async function AccountDetailPage({ params }: { params: { id: stri
       {sortedSignals.length === 0 ? (
         <div className="empty">No signals for this account yet.</div>
       ) : (
-        sortedSignals.map((s) => (
-          <div className={`signal${s.dismissed ? ' dismissed' : ''}`} key={s._id.toString()}>
-            <span className={`dot ${s.severity}`} />
-            <div className="body">
-              <div className="summary">{s.summary}</div>
-              <div className="detail">
-                {s.signal_type.replaceAll('_', ' ')} · {s.source} · {new Date(s.detected_at).toLocaleDateString()}
-                {s.sfdc_task_id ? ' · SF task created' : ''}
+        sortedSignals.map((s) => {
+          const status = s.status ?? (s.dismissed ? 'dismissed' : 'new');
+          return (
+            <div className={`signal${status === 'dismissed' ? ' dismissed' : ''}`} key={s._id.toString()}>
+              <span className={`dot ${s.severity}`} />
+              <div className="body">
+                <div className="summary">
+                  {s.summary} <span className={`badge status-${status}`}>{status}</span>
+                </div>
+                <div className="detail">
+                  {s.signal_type.replaceAll('_', ' ')} · {s.source} · {new Date(s.detected_at).toLocaleDateString()}
+                </div>
               </div>
+              <SignalActions id={s._id.toString()} status={status} relevance={s.relevance} />
             </div>
-            <SignalActions id={s._id.toString()} dismissed={s.dismissed} relevance={s.relevance} />
-          </div>
-        ))
+          );
+        })
       )}
 
       <h2 className="section-title">Contacts</h2>

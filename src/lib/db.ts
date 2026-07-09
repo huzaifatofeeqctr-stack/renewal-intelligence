@@ -39,6 +39,10 @@ async function ensureIndexes(database: Db): Promise<void> {
     database.collection('industry_intel').createIndex({ industry: 1 }, { unique: true }),
     database.collection('notification_log').createIndex({ signal_key: 1 }, { unique: true }),
     database.collection('enrichment_run_log').createIndex({ workflow_name: 1, run_at: -1 }),
+    database.collection('signals').createIndex({ status: 1, detected_at: -1 }),
+    database.collection('jobs').createIndex({ status: 1, created_at: 1 }),
+    // Mongo purges expired sessions itself — expireAt must be a real Date.
+    database.collection('sessions').createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
 }
 
