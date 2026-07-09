@@ -41,7 +41,7 @@ async function getToken(): Promise<SfToken> {
   return cachedToken;
 }
 
-export async function sfFetch(path: string, init?: RequestInit): Promise<Response> {
+async function sfFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = await getToken();
   return fetch(`${token.instance_url}${path}`, {
     ...init,
