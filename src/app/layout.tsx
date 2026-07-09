@@ -33,24 +33,29 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/import">Import</Link>
               </nav>
               <div className="side-user">
-                <Link href="/settings" className="side-user-main" title="Settings">
-                  <span className="avatar">
-                    {user.name
-                      .split(/\s+/)
-                      .map((p) => p[0])
-                      .join('')
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </span>
-                  <span className="side-user-name">
-                    <strong>{user.name}</strong>
-                    <small>Settings</small>
-                  </span>
-                </Link>
-                <div className="side-user-links">
-                  <Link href="/profile">Profile</Link>
+                <div className="side-user-pop">
+                  <Link href="/settings">⚙️ Settings</Link>
+                  <Link href="/profile">👤 Profile management</Link>
+                </div>
+                <div className="side-user-row">
+                  <Link href="/settings" className="side-user-main" title={user.email}>
+                    <span className="avatar">
+                      {user.name
+                        .split(/\s+/)
+                        .map((p) => p[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </span>
+                    <span className="side-user-name">
+                      <strong>{user.name}</strong>
+                      <small>{user.role}</small>
+                    </span>
+                  </Link>
                   <form action="/api/auth/logout" method="post">
-                    <button type="submit">Sign out</button>
+                    <button type="submit" className="logout-icon" title="Sign out" aria-label="Sign out">
+                      ⏻
+                    </button>
                   </form>
                 </div>
               </div>
