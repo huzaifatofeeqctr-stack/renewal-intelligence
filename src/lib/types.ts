@@ -15,6 +15,7 @@ export interface AccountDoc {
   industry: string | null;
   owner_email: string | null;
   renewal_date: string | null;
+  stakeholders_checked_at?: string | null;
   updated_at: string;
 }
 
@@ -35,8 +36,8 @@ export interface ContactDoc {
   linkedin_url: string | null;
   is_junk: boolean;
   junk_reason: string | null;
-  clay_last_run: string | null;
-  work_email_provider: string | null;
+  enriched_at: string | null;
+  enrichment_provider: string | null;
   updated_at: string;
 }
 

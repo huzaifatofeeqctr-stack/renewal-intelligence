@@ -103,9 +103,9 @@ export default async function ContactsPage({
                     )}
                   </td>
                   <td>
-                    {c.clay_last_run
-                      ? `${new Date(c.clay_last_run).toLocaleDateString()}${
-                          c.work_email_provider ? ` (${c.work_email_provider})` : ''
+                    {c.enriched_at
+                      ? `${new Date(c.enriched_at).toLocaleDateString()}${
+                          c.enrichment_provider ? ` (${c.enrichment_provider})` : ''
                         }`
                       : 'never'}
                   </td>

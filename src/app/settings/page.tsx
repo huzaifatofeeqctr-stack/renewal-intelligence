@@ -6,8 +6,7 @@ export const dynamic = 'force-dynamic';
 const INTEGRATIONS: { name: string; envVar: string }[] = [
   { name: 'MongoDB', envVar: 'MONGODB_URI' },
   { name: 'Salesforce', envVar: 'SF_CLIENT_ID' },
-  { name: 'LeadIQ', envVar: 'LEADIQ_API_KEY' },
-  { name: 'Clay webhook', envVar: 'CLAY_WEBHOOK_URL' },
+  { name: 'Apollo', envVar: 'APOLLO_API_KEY' },
   { name: 'Tavily', envVar: 'TAVILY_API_KEY' },
   { name: 'Anthropic', envVar: 'ANTHROPIC_API_KEY' },
   { name: 'Slack alerts', envVar: 'SLACK_WEBHOOK_URL' },

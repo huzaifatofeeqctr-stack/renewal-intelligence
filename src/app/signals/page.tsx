@@ -65,7 +65,7 @@ export default async function SignalsPage({
         <div className="empty">Could not reach MongoDB ({loadError}).</div>
       ) : signals.length === 0 ? (
         <div className="empty">
-          {q ? `No signals match “${q}”.` : 'No signals yet — they appear when the LeadIQ sync detects changes.'}
+          {q ? `No signals match “${q}”.` : 'No signals yet — they appear when Apollo detects job changes or new stakeholders.'}
         </div>
       ) : (
         <>

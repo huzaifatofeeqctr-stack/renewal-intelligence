@@ -8,9 +8,9 @@ import type { AccountDoc, ContactDoc, SignalDoc } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 // Dry run: walks a demo account ("Glow Recipe (Demo)") through the full
-// pipeline — ingest, junk gate, Clay dispatch/callback, LeadIQ change,
+// pipeline — ingest, junk gate, Apollo enrichment, job-change detection,
 // signal + notification — using the real store and real code paths, but
-// WITHOUT calling Salesforce, LeadIQ, or Clay. Slack is attempted for real
+// WITHOUT calling Salesforce or Apollo. Slack is attempted for real
 // if SLACK_WEBHOOK_URL is set. Everything it writes is prefixed DEMO- and
 // removable with ?cleanup=1.
 export async function GET(req: NextRequest) {
@@ -91,8 +91,8 @@ export async function GET(req: NextRequest) {
             email_valid: 'unknown' as const,
             personal_email: null,
             linkedin_url: null,
-            clay_last_run: null,
-            work_email_provider: null,
+            enriched_at: null,
+            enrichment_provider: null,
           },
         },
         { upsert: true }
@@ -100,30 +100,30 @@ export async function GET(req: NextRequest) {
     }
     trace.push({ phase: '2. junk gate', detail: '3 contacts ingested and screened', data: gate });
 
-    // ── Phase 3: Clay dispatch (what WOULD be sent) ───────────────────────
+    // ── Phase 3: Apollo enrichment queue (what WOULD be matched) ───────────────────────
     const incomplete = await contacts
       .find({ account_sfdc_id: 'DEMO-ACCT-001', is_junk: false, $or: [{ email: null }, { title: null }, { linkedin_url: null }] })
       .toArray();
     trace.push({
-      phase: '3. clay dispatch',
-      detail: `${incomplete.length} incomplete non-junk contact(s) would be POSTed to the Clay table webhook (budgeted, renewal-priority order)`,
+      phase: '3. apollo enrichment queue',
+      detail: `${incomplete.length} incomplete non-junk contact(s) would be enriched via Apollo people/match (budgeted, renewal-priority order)`,
       data: incomplete.map((c) => ({ contact_id: c.sfdc_id, name: `${c.first_name} ${c.last_name}`, missing: [!c.email && 'email', !c.title && 'title', !c.linkedin_url && 'linkedin'].filter(Boolean) })),
     });
 
-    // ── Phase 4: Clay callback (simulated enriched row, fill-only-empty) ──
+    // ── Phase 4: Apollo enrichment (simulated match result, fill-only-empty) ──
     const enriched = {
       work_email: 'david.chen@glowrecipe.com',
       email_valid: 'valid' as const,
       personal_email: 'dchen88@gmail.com',
       linkedin_url: 'https://linkedin.com/in/davidchen-demo',
       title: 'Director of Ecommerce',
-      provider_used: 'prospeo (via Clay waterfall)',
+      provider_used: 'apollo',
     };
     const before = await contacts.findOne({ sfdc_id: 'DEMO-C-002' });
     const updates: Partial<ContactDoc> = {
       email_valid: enriched.email_valid,
-      clay_last_run: now,
-      work_email_provider: enriched.provider_used,
+      enriched_at: now,
+      enrichment_provider: enriched.provider_used,
       updated_at: now,
     };
     if (!before?.email) { updates.email = enriched.work_email; updates.work_email = enriched.work_email; }
@@ -132,12 +132,12 @@ export async function GET(req: NextRequest) {
     if (!before?.personal_email) updates.personal_email = enriched.personal_email;
     await contacts.updateOne({ sfdc_id: 'DEMO-C-002' }, { $set: updates });
     trace.push({
-      phase: '4. clay callback (fill-only-empty)',
+      phase: '4. apollo enrichment (fill-only-empty)',
       detail: 'David Chen enriched — only blank fields were written; in live mode Email/Title also mirror back to the Salesforce contact',
-      data: { filled: Object.keys(updates).filter((k) => !['updated_at', 'clay_last_run'].includes(k)) },
+      data: { filled: Object.keys(updates).filter((k) => !['updated_at', 'enriched_at'].includes(k)) },
     });
 
-    // ── Phase 5: LeadIQ champion tracking detects a job change ───────────
+    // ── Phase 5: Apollo re-enrichment detects job changes + new stakeholder ───────────
     const signalDocs: SignalDoc[] = [
       {
         signal_key: 'DEMO-SIG-champion-left',
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
         summary: 'Sarah Kim left Glow Recipe and is now VP Lifecycle at Rhode Skin',
         previous_value: 'Glow Recipe',
         new_value: 'Rhode Skin',
-        source: 'leadiq',
+        source: 'apollo',
         csm_email: 'huzaifa.tofeeq.ctr@postscript.io',
         detected_at: now,
         sfdc_task_id: null,
@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
         summary: 'David Chen changed title from Director of Ecommerce to VP of Digital',
         previous_value: 'Director of Ecommerce',
         new_value: 'VP of Digital',
-        source: 'leadiq',
+        source: 'apollo',
         csm_email: 'huzaifa.tofeeq.ctr@postscript.io',
         detected_at: now,
         sfdc_task_id: null,
@@ -232,7 +232,7 @@ export async function GET(req: NextRequest) {
       }
     }
     trace.push({
-      phase: '5. signal engine (LeadIQ + Apollo simulated)',
+      phase: '5. signal engine (Apollo simulated)',
       detail: `Signals stored with signal_key dedup. Salesforce Task mirroring is SKIPPED in dry-run (would create real Tasks). Slack ${process.env.SLACK_WEBHOOK_URL ? `sent for ${slackSent} new signal(s)` : 'skipped — SLACK_WEBHOOK_URL not set'}.`,
       data: emitted,
     });
