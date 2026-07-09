@@ -544,3 +544,22 @@ tr:hover td { background: var(--surface); }
 .slack-app small { color: var(--muted); font-weight: 600; font-size: 10px; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: middle; }
 .tpl-modal { max-width: 640px; }
 .tpl-editor { display: flex; flex-direction: column; gap: 4px; padding-top: 12px; }
+
+/* ---- run-now icon bar ---- */
+
+.page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.run-bar { flex-shrink: 0; }
+.run-icons { display: flex; gap: 8px; justify-content: flex-end; }
+.run-icon {
+  width: 38px; height: 38px; font-size: 17px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.run-icon:hover { border-color: var(--info); }
+.run-icon:disabled { opacity: 0.55; cursor: default; }
+.run-bar-toast { margin-top: 10px; max-width: 380px; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .page-head { flex-direction: column; }
+  .run-icons { justify-content: flex-start; }
+}

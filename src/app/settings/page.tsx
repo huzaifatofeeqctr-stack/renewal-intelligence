@@ -20,7 +20,6 @@ const ADMIN_TABS: { key: string; label: string }[] = [
   { key: 'signal-rules', label: 'Signal rules' },
   { key: 'schedule', label: 'Schedule' },
   { key: 'slack-templates', label: 'Slack templates' },
-  { key: 'run-now', label: 'Run now' },
 ];
 
 const COMMON_TABS: { key: string; label: string }[] = [

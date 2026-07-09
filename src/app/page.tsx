@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/require-user';
 import type { AccountDoc, SignalDoc } from '@/lib/types';
 import { SearchBar, Pagination, parsePage, escapeRegex } from './ListControls';
 import AccountsGrid from './AccountsGrid';
+import RunNowBar from './RunNowBar';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +60,7 @@ export default async function AccountsPage({
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { q, page } = parsePage(searchParams);
 
   let all: AccountCard[] = [];
@@ -76,8 +77,13 @@ export default async function AccountsPage({
 
   return (
     <main>
-      <h1>Accounts</h1>
-      <p className="subtitle">Sorted by CRM health — accounts with open critical signals first.</p>
+      <div className="page-head">
+        <div>
+          <h1>Accounts</h1>
+          <p className="subtitle">Sorted by CRM health — accounts with open critical signals first.</p>
+        </div>
+        {user.role === 'admin' && <RunNowBar />}
+      </div>
       <SearchBar basePath="/" q={q} placeholder="Search by account, industry, owner, or domain…" />
       {loadError ? (
         <div className="empty">Could not reach MongoDB ({loadError}).</div>

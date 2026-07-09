@@ -86,19 +86,11 @@ function slackPreviewHtml(template: string): string {
   return t.replace(/\n/g, '<br/>');
 }
 
-const JOBS = [
-  { label: 'Sync Salesforce now', method: 'GET', path: '/api/cron/sf-sync?force=1' },
-  { label: 'Run enrichment batch', method: 'POST', path: '/api/enrich/apollo' },
-  { label: 'Discover stakeholders', method: 'GET', path: '/api/cron/apollo-stakeholders?force=1' },
-  { label: 'Refresh industry intel', method: 'GET', path: '/api/cron/industry-intel' },
-];
 
 export default function WorkspacePanel({ initial, section }: { initial: Ws; section: string }) {
   const [ws, setWs] = useState<Ws>(initial);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [runResult, setRunResult] = useState<string | null>(null);
-  const [running, setRunning] = useState<string | null>(null);
   const [editingTpl, setEditingTpl] = useState<{ key: keyof Ws & string; label: string } | null>(null);
   const [draft, setDraft] = useState('');
 
@@ -121,16 +113,6 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
     setBusy(false);
   }
 
-  async function runJob(job: (typeof JOBS)[number]) {
-    setRunning(job.path);
-    setRunResult(null);
-    try {
-      const res = await fetch(job.path, { method: job.method });
-      const text = await res.text();
-      setRunResult(`${job.label}: ${res.status} ${text.slice(0, 400)}`);
-    } catch (e) {
-      setRunResult(`${job.label}: ${e instanceof Error ? e.message : 'failed'}`);
-    }
     setRunning(null);
   }
 
@@ -457,19 +439,6 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
         </div>
       )}
 
-      {section === 'run-now' && (
-      <div className="panel" id="run-now">
-        <h2>Run now</h2>
-        <div className="run-buttons">
-          {JOBS.map((j) => (
-            <button key={j.path} className="btn-secondary" disabled={running !== null} onClick={() => runJob(j)}>
-              {running === j.path ? 'Running…' : j.label}
-            </button>
-          ))}
-        </div>
-        {runResult && <div className="form-ok run-result">{runResult}</div>}
-      </div>
-      )}
     </>
   );
 }
