@@ -14,6 +14,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'add ?confirm=1 to really purge' }, { status: 400 });
   }
 
+  // ?scope=signals wipes only signals + notification history (accounts and
+  // contacts stay) — used after signal-quality fixes so alerts regenerate.
+  if (req.nextUrl.searchParams.get('scope') === 'signals') {
+    const [s, n] = await Promise.all([
+      (await coll('signals')).deleteMany({}),
+      (await coll('notification_log')).deleteMany({}),
+    ]);
+    return NextResponse.json({ purged: { signals: s.deletedCount, notifications: n.deletedCount } });
+  }
+
   const [a, c, s, n] = await Promise.all([
     (await coll('accounts')).deleteMany({}),
     (await coll('contacts')).deleteMany({}),

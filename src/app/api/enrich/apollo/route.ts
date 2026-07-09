@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCronOrAdmin, logRun } from '@/lib/auth';
 import { getWorkspaceSettings } from '@/lib/workspace';
 import { coll } from '@/lib/db';
-import { matchPerson, normalizeDomain } from '@/lib/apollo';
+import { matchPerson, normalizeDomain, currentRoleAtAccount, titlesEquivalent } from '@/lib/apollo';
 import { updateContact } from '@/lib/salesforce';
 import { emitSignal } from '@/lib/signals';
 import type { ContactDoc } from '@/lib/types';
@@ -98,18 +98,17 @@ async function run(req: NextRequest) {
           updates.email = person.email.toLowerCase();
           updates.work_email = person.email.toLowerCase();
         }
-        if (!c.title && person.title) updates.title = person.title;
         if (!c.linkedin_url && person.linkedin_url) updates.linkedin_url = person.linkedin_url;
 
-        // Champion tracking: does Apollo's current view disagree with the CRM?
+        // Champion tracking, normalized against the FULL employment history:
+        // a concurrent role elsewhere (advisor, second venture) must not read
+        // as "left the company". Only signal when the person has no current
+        // role at the account at all.
         const contactName = `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim();
-        if (
-          person.org_domain &&
-          accountDomain &&
-          person.org_domain !== accountDomain &&
-          !person.org_domain.endsWith(`.${accountDomain}`) &&
-          !accountDomain.endsWith(`.${person.org_domain}`)
-        ) {
+        const roleAtAccount = currentRoleAtAccount(person, accountDomain, c.account_name ?? '');
+        const hasAnyCurrentRole = person.employment.some((e) => e.current) || Boolean(person.org_name);
+
+        if (!roleAtAccount && hasAnyCurrentRole && person.org_name) {
           const isNew = await emitSignal({
             signal_key: `${c.sfdc_id}|job_change_new_company|${person.org_name}`,
             account_sfdc_id: c.account_sfdc_id ?? undefined,
@@ -118,7 +117,7 @@ async function run(req: NextRequest) {
             contact_name: contactName,
             signal_type: 'job_change_new_company',
             severity: 'critical',
-            summary: `${contactName} appears to have left ${c.account_name} — Apollo shows them at ${person.org_name}`,
+            summary: `${contactName} appears to have left ${c.account_name} — Apollo shows them at ${person.org_name} with no current role at ${c.account_name}`,
             previous_value: c.account_name ?? '',
             new_value: person.org_name,
             source: 'apollo',
@@ -126,27 +125,29 @@ async function run(req: NextRequest) {
             detected_at: now,
           });
           if (isNew) signals++;
-        } else if (
-          c.title &&
-          person.title &&
-          c.title.toLowerCase().trim() !== person.title.toLowerCase().trim()
-        ) {
-          const isNew = await emitSignal({
-            signal_key: `${c.sfdc_id}|job_change_new_title|${person.title}`,
-            account_sfdc_id: c.account_sfdc_id ?? undefined,
-            contact_sfdc_id: c.sfdc_id,
-            account_name: c.account_name ?? '',
-            contact_name: contactName,
-            signal_type: 'job_change_new_title',
-            severity: 'warning',
-            summary: `${contactName} changed title from ${c.title} to ${person.title}`,
-            previous_value: c.title,
-            new_value: person.title,
-            source: 'apollo',
-            csm_email: c.account_owner_email ?? '',
-            detected_at: now,
-          });
-          if (isNew) signals++;
+        } else {
+          // Compare titles from their role AT the account (not the primary org),
+          // with normalization so formatting variants don't signal.
+          const titleAtAccount = roleAtAccount?.title || person.title;
+          if (!c.title && titleAtAccount) updates.title = titleAtAccount;
+          if (c.title && titleAtAccount && !titlesEquivalent(c.title, titleAtAccount)) {
+            const isNew = await emitSignal({
+              signal_key: `${c.sfdc_id}|job_change_new_title|${titleAtAccount}`,
+              account_sfdc_id: c.account_sfdc_id ?? undefined,
+              contact_sfdc_id: c.sfdc_id,
+              account_name: c.account_name ?? '',
+              contact_name: contactName,
+              signal_type: 'job_change_new_title',
+              severity: 'warning',
+              summary: `${contactName} changed title from ${c.title} to ${titleAtAccount} at ${c.account_name}`,
+              previous_value: c.title,
+              new_value: titleAtAccount,
+              source: 'apollo',
+              csm_email: c.account_owner_email ?? '',
+              detected_at: now,
+            });
+            if (isNew) signals++;
+          }
         }
 
         enrichedCount++;

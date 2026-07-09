@@ -56,6 +56,12 @@ export async function searchPeopleByDomain(domain: string, titles: string[]): Pr
   }));
 }
 
+export interface ApolloEmployment {
+  org_name: string;
+  title: string;
+  current: boolean;
+}
+
 export interface ApolloPerson {
   name: string;
   first_name: string;
@@ -64,8 +70,9 @@ export interface ApolloPerson {
   email: string;
   email_status: string; // 'verified' | 'guessed' | ...
   linkedin_url: string;
-  org_name: string;
+  org_name: string; // Apollo's PRIMARY org guess — people can hold several current roles
   org_domain: string;
+  employment: ApolloEmployment[]; // full history; the source of truth for "still there?"
 }
 
 // Reveals a full person record — consumes 1 Apollo credit per call.
@@ -95,6 +102,10 @@ export async function matchPerson(query: {
   if (!p) return null;
   const org = (p.organization ?? {}) as Record<string, unknown>;
   const orgUrl = String(org.website_url ?? '');
+  const history = (Array.isArray(p.employment_history) ? p.employment_history : []) as Record<
+    string,
+    unknown
+  >[];
   return {
     name: String(p.name ?? ''),
     first_name: String(p.first_name ?? ''),
@@ -105,7 +116,83 @@ export async function matchPerson(query: {
     linkedin_url: String(p.linkedin_url ?? ''),
     org_name: String(org.name ?? ''),
     org_domain: orgUrl.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, ''),
+    employment: history.map((e) => ({
+      org_name: String(e.organization_name ?? ''),
+      title: String(e.title ?? ''),
+      current: e.current === true || e.end_date == null,
+    })),
   };
+}
+
+// ── normalization helpers for signal quality ─────────────────────────────
+
+function normalizeOrgName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\b(inc|llc|ltd|co|corp|company|the)\b/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+// "SolaceBands" ≈ "Solace Bands"; "ButcherBox" ≈ "butcherbox.ca"
+export function orgNamesMatch(a: string, b: string): boolean {
+  const na = normalizeOrgName(a);
+  const nb = normalizeOrgName(b);
+  if (!na || !nb) return false;
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
+const TITLE_EXPANSIONS: [RegExp, string][] = [
+  [/\bcmo\b/g, 'chief marketing officer'],
+  [/\bceo\b/g, 'chief executive officer'],
+  [/\bcoo\b/g, 'chief operating officer'],
+  [/\bcfo\b/g, 'chief financial officer'],
+  [/\bcto\b/g, 'chief technology officer'],
+  [/\bsvp\b/g, 'senior vice president'],
+  [/\bevp\b/g, 'executive vice president'],
+  [/\bvp\b/g, 'vice president'],
+  [/\bdir\b/g, 'director'],
+  [/\bmktg\b/g, 'marketing'],
+  [/\becomm?\b/g, 'ecommerce'],
+];
+
+function normalizeTitle(title: string): string {
+  let t = title.toLowerCase().replace(/&/g, ' and ');
+  for (const [re, full] of TITLE_EXPANSIONS) t = t.replace(re, full);
+  return t
+    .replace(/\b(co)[\s-]?founder\b/g, 'founder') // co-founder ≈ founder
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Only a REAL title change should signal — formatting variants must not.
+export function titlesEquivalent(a: string, b: string): boolean {
+  const na = normalizeTitle(a);
+  const nb = normalizeTitle(b);
+  if (!na || !nb) return true; // nothing to compare — don't signal on blanks
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
+export function domainsMatch(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
+}
+
+// The person's current role AT this account, if any — checked against the
+// full employment history so concurrent roles elsewhere don't cause false
+// "left the company" signals.
+export function currentRoleAtAccount(
+  person: ApolloPerson,
+  accountDomain: string,
+  accountName: string
+): ApolloEmployment | null {
+  const currents = person.employment.filter((e) => e.current);
+  const byHistory = currents.find((e) => orgNamesMatch(e.org_name, accountName));
+  if (byHistory) return byHistory;
+  if (domainsMatch(person.org_domain, accountDomain) || orgNamesMatch(person.org_name, accountName)) {
+    return { org_name: person.org_name, title: person.title, current: true };
+  }
+  return null;
 }
 
 export function normalizeDomain(website: string | null | undefined): string {
