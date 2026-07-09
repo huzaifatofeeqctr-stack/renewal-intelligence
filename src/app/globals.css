@@ -506,3 +506,5 @@ tr:hover td { background: var(--surface); }
   .settings-menu { width: 100%; position: static; flex-direction: row; flex-wrap: wrap; }
   .settings-menu h1 { width: 100%; }
 }
+
+.settings-menu a.active { color: var(--text); background: var(--surface); border-left: 2px solid var(--info); }

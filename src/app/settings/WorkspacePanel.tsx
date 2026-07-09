@@ -57,7 +57,7 @@ const JOBS = [
   { label: 'Refresh industry intel', method: 'GET', path: '/api/cron/industry-intel' },
 ];
 
-export default function WorkspacePanel({ initial }: { initial: Ws }) {
+export default function WorkspacePanel({ initial, section }: { initial: Ws; section: string }) {
   const [ws, setWs] = useState<Ws>(initial);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -112,6 +112,7 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
         </div>
       )}
 
+      {section === 'workspace' && (
       <div className="panel" id="workspace">
         <h2>Sync & enrichment</h2>
         <div className="settings-rows">
@@ -214,7 +215,9 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
           />
         </div>
       </div>
+      )}
 
+      {section === 'signal-rules' && (
       <div className="panel" id="signal-rules">
         <h2>Signal rules</h2>
         <p className="template-hint">
@@ -278,7 +281,9 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
           />
         </div>
       </div>
+      )}
 
+      {section === 'schedule' && (
       <div className="panel" id="schedule">
         <h2>Schedule</h2>
         <div className="settings-rows">
@@ -336,7 +341,9 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
           </label>
         </div>
       </div>
+      )}
 
+      {section === 'slack-templates' && (
       <div className="panel" id="slack-templates">
         <h2>Slack alert templates</h2>
         <p className="template-hint">
@@ -364,7 +371,9 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
           </div>
         ))}
       </div>
+      )}
 
+      {section === 'run-now' && (
       <div className="panel" id="run-now">
         <h2>Run now</h2>
         <div className="run-buttons">
@@ -376,6 +385,7 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
         </div>
         {runResult && <div className="form-ok run-result">{runResult}</div>}
       </div>
+      )}
     </>
   );
 }
