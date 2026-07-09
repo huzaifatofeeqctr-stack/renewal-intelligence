@@ -162,10 +162,12 @@ async function run(req: NextRequest) {
       }
     } catch (e) {
       errors++;
+      const message = e instanceof Error ? e.message : String(e);
       if (!firstError) {
-        firstError = `${c.sfdc_id}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 500);
+        firstError = `${c.sfdc_id}: ${message}`.slice(0, 500);
       }
       console.error(`apollo enrich failed for ${c.sfdc_id}:`, e);
+      if (message.includes('insufficient credits')) break; // plan is out of credits — no point continuing
     }
   }
 
