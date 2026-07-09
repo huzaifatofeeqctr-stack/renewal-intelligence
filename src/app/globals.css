@@ -476,7 +476,7 @@ tr:hover td { background: var(--surface); }
 }
 .side-user-pop a:hover { background: var(--bg); }
 
-.content { flex: 1; padding: 24px 28px; max-width: 1040px; min-width: 0; }
+.content { flex: 1; padding: 24px 28px; min-width: 0; }
 
 /* ---- settings sub-menu ---- */
 
@@ -548,7 +548,7 @@ tr:hover td { background: var(--surface); }
 /* ---- run-now icon bar ---- */
 
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.run-bar { flex-shrink: 0; }
+.run-bar { flex-shrink: 0; margin-left: auto; }
 .run-icons { display: flex; gap: 8px; justify-content: flex-end; }
 .run-icon {
   width: 38px; height: 38px; font-size: 17px;
