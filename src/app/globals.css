@@ -563,3 +563,21 @@ tr:hover td { background: var(--surface); }
   .page-head { flex-direction: column; }
   .run-icons { justify-content: flex-start; }
 }
+
+/* ---- run-icon tooltips ---- */
+
+.run-icon { position: relative; }
+.run-icon[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 40;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; font-size: 12px; line-height: 1.4;
+  width: max-content; max-width: 240px; text-align: left; white-space: normal;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+.run-icon[data-tip]:hover::before {
+  content: ''; position: absolute; top: calc(100% + 3px); right: 14px; z-index: 41;
+  border: 5px solid transparent; border-bottom-color: var(--border);
+}

@@ -4,10 +4,34 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 const JOBS = [
-  { icon: '🔄', label: 'Sync Salesforce', method: 'GET', path: '/api/cron/sf-sync?force=1' },
-  { icon: '⚡', label: 'Run enrichment', method: 'POST', path: '/api/enrich/apollo' },
-  { icon: '🔍', label: 'Discover stakeholders', method: 'GET', path: '/api/cron/apollo-stakeholders?force=1' },
-  { icon: '📰', label: 'Refresh industry intel', method: 'GET', path: '/api/cron/industry-intel' },
+  {
+    icon: '🔄',
+    label: 'Sync Salesforce',
+    tip: 'Sync Salesforce — refresh tracked accounts & contacts from the CRM',
+    method: 'GET',
+    path: '/api/cron/sf-sync?force=1',
+  },
+  {
+    icon: '⚡',
+    label: 'Run enrichment',
+    tip: 'Run enrichment — fill missing emails/titles/LinkedIn via Apollo (uses credits)',
+    method: 'POST',
+    path: '/api/enrich/apollo',
+  },
+  {
+    icon: '🔍',
+    label: 'Discover stakeholders',
+    tip: 'Discover stakeholders — scan accounts for ICP-title people not in the CRM',
+    method: 'GET',
+    path: '/api/cron/apollo-stakeholders?force=1',
+  },
+  {
+    icon: '📰',
+    label: 'Refresh industry intel',
+    tip: 'Refresh industry intel — regenerate per-industry briefings (Tavily + AI)',
+    method: 'GET',
+    path: '/api/cron/industry-intel',
+  },
 ];
 
 export default function RunNowBar() {
@@ -36,7 +60,7 @@ export default function RunNowBar() {
           <button
             key={j.path}
             className={`run-icon${running === j.path ? ' running' : ''}`}
-            title={j.label}
+            data-tip={j.tip}
             aria-label={j.label}
             disabled={running !== null}
             onClick={() => run(j)}
