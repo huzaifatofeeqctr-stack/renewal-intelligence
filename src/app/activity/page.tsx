@@ -35,6 +35,7 @@ export default async function ActivityPage() {
       items_processed: r.items_processed ?? 0,
       errors: r.errors ?? 0,
       notes: r.notes ?? '',
+      items: (r.items ?? []).map((i) => ({ name: i.name, action: i.action, detail: i.detail })),
     }));
     jobs = rawJobs.map((j) => ({
       id: j._id.toString(),

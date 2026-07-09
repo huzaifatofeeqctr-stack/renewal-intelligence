@@ -95,6 +95,14 @@ export interface IndustryIntelDoc {
   updated_at: string;
 }
 
+// One line of a run's per-item trace: what happened to each contact/account.
+export interface RunItem {
+  name: string; // contact or account display name
+  account_sfdc_id: string | null; // lets account pages filter their own history
+  action: string; // e.g. 'enriched', 'no data', 'synced', 'error', 'signal'
+  detail: string; // e.g. 'filled email, linkedin · title-change signal'
+}
+
 export interface RunLogDoc {
   workflow_name: string;
   run_at: string;
@@ -103,6 +111,8 @@ export interface RunLogDoc {
   items_processed: number;
   errors: number;
   notes: string;
+  account_sfdc_id?: string | null; // set when the run was scoped to one account
+  items?: RunItem[]; // per-item trace (capped)
 }
 
 export interface NewSignal {

@@ -4,7 +4,7 @@ import { matchPerson, normalizeDomain, currentRoleAtAccount, titlesEquivalent, a
 import { emitSignal } from './signals';
 import { enqueueJob } from './jobs';
 import { getWorkspaceSettings } from './workspace';
-import type { ContactDoc } from './types';
+import type { ContactDoc, RunItem } from './types';
 
 const MATCH_BUDGET = 30; // per invocation — keeps a single HTTP run under the proxy timeout
 
@@ -74,8 +74,11 @@ export async function runEnrichBatch(opts: {
   let errors = 0;
   let firstError: string | null = null;
   let outOfCredits = false;
+  const trace: RunItem[] = []; // per-contact record of what actually happened
 
   for (const c of candidates) {
+    const contactLabel = `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() || c.sfdc_id;
+    const traceNotes: string[] = [];
     try {
       const accountDomain =
         normalizeDomain(c.account_website) || (c.email ? c.email.split('@')[1] ?? '' : '');
@@ -114,8 +117,12 @@ export async function runEnrichBatch(opts: {
         if (!c.email && emailUsable) {
           updates.email = person.email.toLowerCase();
           updates.work_email = person.email.toLowerCase();
+          traceNotes.push('filled email');
         }
-        if (!c.linkedin_url && person.linkedin_url) updates.linkedin_url = person.linkedin_url;
+        if (!c.linkedin_url && person.linkedin_url) {
+          updates.linkedin_url = person.linkedin_url;
+          traceNotes.push('filled linkedin');
+        }
 
         // Champion tracking, normalized against the FULL employment history:
         // only signal "left the company" when the person has no current role
@@ -141,11 +148,17 @@ export async function runEnrichBatch(opts: {
             detected_at: now,
           });
           if (isNew) signals++;
+          traceNotes.push(
+            isNew ? `company-change signal → ${person.org_name}` : `company change already signaled (${person.org_name})`
+          );
         } else {
           // Compare titles from their role AT the account (not the primary org),
           // with normalization so formatting variants don't signal.
           const titleAtAccount = roleAtAccount?.title || person.title;
-          if (!c.title && titleAtAccount) updates.title = titleAtAccount;
+          if (!c.title && titleAtAccount) {
+            updates.title = titleAtAccount;
+            traceNotes.push(`filled title (${titleAtAccount})`);
+          }
           if (
             c.title &&
             titleAtAccount &&
@@ -168,12 +181,31 @@ export async function runEnrichBatch(opts: {
               detected_at: now,
             });
             if (isNew) signals++;
+            traceNotes.push(
+              isNew
+                ? `title-change signal: ${c.title} → ${titleAtAccount}`
+                : `title change already signaled (${titleAtAccount})`
+            );
+          } else if (roleAtAccount) {
+            traceNotes.push('still at account, title unchanged');
           }
         }
 
         enrichedCount++;
+        trace.push({
+          name: contactLabel,
+          account_sfdc_id: c.account_sfdc_id ?? null,
+          action: isWatch ? 'verified' : 'enriched',
+          detail: traceNotes.join(' · ') || 'matched — nothing new to fill',
+        });
       } else {
         noData++;
+        trace.push({
+          name: contactLabel,
+          account_sfdc_id: c.account_sfdc_id ?? null,
+          action: 'no data',
+          detail: 'Apollo had no match for this person',
+        });
       }
 
       // Salesforce is read-only for this app — enriched data lives in Mongo only.
@@ -183,6 +215,12 @@ export async function runEnrichBatch(opts: {
       const message = e instanceof Error ? e.message : String(e);
       if (!firstError) firstError = `${c.sfdc_id}: ${message}`.slice(0, 500);
       console.error(`apollo ${opts.mode} failed for ${c.sfdc_id}:`, e);
+      trace.push({
+        name: contactLabel,
+        account_sfdc_id: c.account_sfdc_id ?? null,
+        action: 'error',
+        detail: message.slice(0, 300),
+      });
       if (message.includes('insufficient credits')) {
         outOfCredits = true;
         break; // plan is out of credits — no point continuing
@@ -208,6 +246,8 @@ export async function runEnrichBatch(opts: {
     items_processed: enrichedCount,
     errors,
     notes: `budget=${batchSize} processed=${enrichedCount} noData=${noData} signals=${signals}${queuedFollowUp ? ' followUpQueued' : ''}`,
+    account_sfdc_id: opts.accountScope ?? null,
+    items: trace,
   });
 
   return { candidates: candidates.length, enriched: enrichedCount, noData, signals, errors, firstError, queuedFollowUp };

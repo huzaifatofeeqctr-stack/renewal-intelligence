@@ -1,6 +1,6 @@
 import { coll } from '@/lib/db';
 import { requireUser } from '@/lib/require-user';
-import type { AccountDoc, SignalDoc } from '@/lib/types';
+import type { AccountDoc, ContactDoc, RunLogDoc, SignalDoc } from '@/lib/types';
 import { SearchBar, Pagination, parsePage, escapeRegex } from './ListControls';
 import AccountsGrid from './AccountsGrid';
 import RunNowBar from './RunNowBar';
@@ -14,6 +14,7 @@ interface AccountCard extends AccountDoc {
   warning: number;
   info: number;
   computedScore: number;
+  enriched_at: string | null; // most recent contact enrichment on the account
 }
 
 async function loadAccounts(q: string): Promise<AccountCard[]> {
@@ -28,7 +29,7 @@ async function loadAccounts(q: string): Promise<AccountCard[]> {
       }
     : {};
 
-  const [accounts, signals] = await Promise.all([
+  const [accounts, signals, enrichedRows] = await Promise.all([
     coll<AccountDoc>('accounts').then((c) => c.find(filter).limit(5000).toArray()),
     coll<SignalDoc>('signals').then((c) =>
       c
@@ -36,7 +37,16 @@ async function loadAccounts(q: string): Promise<AccountCard[]> {
         .project<Pick<SignalDoc, 'account_sfdc_id' | 'severity'>>({ account_sfdc_id: 1, severity: 1 })
         .toArray()
     ),
+    coll<ContactDoc>('contacts').then((c) =>
+      c
+        .aggregate<{ _id: string; last: string }>([
+          { $match: { enriched_at: { $ne: null } } },
+          { $group: { _id: '$account_sfdc_id', last: { $max: '$enriched_at' } } },
+        ])
+        .toArray()
+    ),
   ]);
+  const enrichedByAccount = new Map(enrichedRows.map((r) => [r._id, r.last]));
 
   const counts = new Map<string, { critical: number; warning: number; info: number }>();
   for (const s of signals) {
@@ -50,7 +60,7 @@ async function loadAccounts(q: string): Promise<AccountCard[]> {
     .map((a) => {
       const c = counts.get(a.sfdc_id) ?? { critical: 0, warning: 0, info: 0 };
       const computedScore = Math.max(0, 100 - c.critical * 40 - c.warning * 15 - c.info * 5);
-      return { ...a, ...c, computedScore };
+      return { ...a, ...c, computedScore, enriched_at: enrichedByAccount.get(a.sfdc_id) ?? null };
     })
     .sort((a, b) => a.computedScore - b.computedScore || b.critical - a.critical || a.name.localeCompare(b.name));
 }
@@ -62,6 +72,19 @@ export default async function AccountsPage({
 }) {
   const user = await requireUser();
   const { q, page } = parsePage(searchParams);
+
+  // Powers the green state + tooltip on the global "Run enrichment" icon.
+  let lastEnrichRunAt: string | null = null;
+  try {
+    const runLog = await coll<RunLogDoc>('enrichment_run_log');
+    const lastRun = await runLog.findOne(
+      { workflow_name: 'apollo-enrich' },
+      { sort: { run_at: -1 }, projection: { run_at: 1 } }
+    );
+    lastEnrichRunAt = lastRun?.run_at ?? null;
+  } catch {
+    // non-fatal — icon just renders without the timestamp
+  }
 
   let all: AccountCard[] = [];
   let loadError: string | null = null;
@@ -82,7 +105,7 @@ export default async function AccountsPage({
           <h1>Accounts</h1>
           <p className="subtitle">Sorted by CRM health — accounts with open critical signals first.</p>
         </div>
-        {user.role === 'admin' && <RunNowBar />}
+        {user.role === 'admin' && <RunNowBar lastEnrichRunAt={lastEnrichRunAt} />}
       </div>
       <SearchBar basePath="/" q={q} placeholder="Search by account, industry, owner, or domain…" />
       {loadError ? (
@@ -105,6 +128,7 @@ export default async function AccountsPage({
               warning: a.warning,
               info: a.info,
               computedScore: a.computedScore,
+              enriched_at: a.enriched_at,
             }))}
           />
           <Pagination basePath="/" q={q} page={current} totalPages={totalPages} totalItems={all.length} />

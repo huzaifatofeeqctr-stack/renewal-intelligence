@@ -58,10 +58,12 @@ async function run(req: NextRequest) {
   let reveals = 0;
   let newStakeholders = 0;
   let errors = 0;
+  const trace: { name: string; account_sfdc_id: string | null; action: string; detail: string }[] = [];
 
   for (const account of batch) {
     const domain = normalizeDomain(account.website);
     if (!domain) continue;
+    const before = { reveals, newStakeholders };
     try {
       const hits = await searchPeopleByDomain(domain, titles);
       const existing = await contacts
@@ -103,9 +105,21 @@ async function run(req: NextRequest) {
         });
         if (isNew) newStakeholders++;
       }
+      trace.push({
+        name: account.name,
+        account_sfdc_id: account.sfdc_id,
+        action: 'scanned',
+        detail: `${hits.length} ICP matches · ${reveals - before.reveals} revealed · ${newStakeholders - before.newStakeholders} new stakeholder(s)`,
+      });
     } catch (e) {
       errors++;
       console.error(`stakeholder scan failed for ${account.name}:`, e);
+      trace.push({
+        name: account.name,
+        account_sfdc_id: account.sfdc_id,
+        action: 'error',
+        detail: (e instanceof Error ? e.message : String(e)).slice(0, 300),
+      });
     }
     await accounts.updateOne({ sfdc_id: account.sfdc_id }, { $set: { stakeholders_checked_at: now } });
   }
@@ -117,6 +131,7 @@ async function run(req: NextRequest) {
     items_processed: reveals,
     errors,
     notes: `accounts=${batch.length} reveals=${reveals} newStakeholders=${newStakeholders} titles=${titles.length}`,
+    items: trace,
   });
 
   return NextResponse.json({ accounts: batch.length, reveals, newStakeholders, errors });

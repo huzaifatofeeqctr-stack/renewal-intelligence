@@ -15,6 +15,7 @@ export interface AccountCardData {
   warning: number;
   info: number;
   computedScore: number;
+  enriched_at: string | null; // most recent contact enrichment on the account
 }
 
 interface SignalRow {
@@ -41,11 +42,38 @@ interface ContactRow {
   junk_reason: string | null;
 }
 
+interface HistoryEntry {
+  id: string;
+  workflow_name: string;
+  run_at: string;
+  errors: number;
+  notes: string;
+  items: { name: string; action: string; detail: string }[];
+}
+
 interface Detail {
-  account: AccountCardData & { website: string | null };
+  account: AccountCardData & { website: string | null; last_enriched_at?: string | null };
   signals: SignalRow[];
   contacts: ContactRow[];
+  history?: HistoryEntry[];
 }
+
+function timeAgo(iso: string): string {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+const WORKFLOW_LABELS: Record<string, string> = {
+  'sf-sync': '🔄 Salesforce sync',
+  'sf-import': '📥 Imported from Salesforce',
+  'apollo-enrich': '⚡ Apollo enrichment',
+  'champion-watch': '👁 Champion watch',
+  'apollo-stakeholders': '🔍 Stakeholder discovery',
+};
 
 function scoreClass(score: number): string {
   if (score >= 80) return 'good';
@@ -66,12 +94,14 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
   const [busy, setBusy] = useState(false);
   const [enrichingId, setEnrichingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [expandedRun, setExpandedRun] = useState<string | null>(null);
 
   async function open(id: string, preset: SeverityFilter = 'all') {
     setOpenId(id);
     setFilter(preset);
     setSearch('');
     setConfirmDelete(false);
+    setExpandedRun(null);
     setDetail(null);
     setLoading(true);
     const res = await fetch(`/api/accounts/${id}`);
@@ -238,15 +268,19 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
             </div>
             <div className="card-actions">
               <button
-                className="card-btn"
+                className={`card-btn${a.enriched_at ? ' done' : ''}`}
                 disabled={enrichingId !== null}
-                title="Enrich this account's contacts via Apollo"
+                title={
+                  a.enriched_at
+                    ? `Enriched ${timeAgo(a.enriched_at)} (${new Date(a.enriched_at).toLocaleString()}) — click to run again`
+                    : "Enrich this account's contacts via Apollo"
+                }
                 onClick={(e) => {
                   e.stopPropagation();
                   enrichAccount(a.sfdc_id, a.name);
                 }}
               >
-                {enrichingId === a.sfdc_id ? 'Enriching…' : '⚡ Enrich'}
+                {enrichingId === a.sfdc_id ? 'Enriching…' : a.enriched_at ? '⚡ Enriched' : '⚡ Enrich'}
               </button>
               <button
                 className="card-btn danger"
@@ -387,6 +421,48 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
                       </tbody>
                     </table>
                   )}
+
+                  <h3 className="section-title">History ({(detail?.history ?? []).length})</h3>
+                  {(detail?.history ?? []).length === 0 ? (
+                    <div className="empty">No runs have touched this account yet.</div>
+                  ) : (
+                    <div className="history-list">
+                      {(detail?.history ?? []).map((h) => (
+                        <div className="history-entry" key={h.id}>
+                          <button
+                            className="history-head"
+                            onClick={() => setExpandedRun(expandedRun === h.id ? null : h.id)}
+                          >
+                            <span className="history-title">
+                              {WORKFLOW_LABELS[h.workflow_name] ?? h.workflow_name}
+                              {h.errors > 0 && <span className="badge critical">{h.errors} error(s)</span>}
+                            </span>
+                            <span className="history-when" title={new Date(h.run_at).toLocaleString()}>
+                              {timeAgo(h.run_at)} {expandedRun === h.id ? '▾' : '▸'}
+                            </span>
+                          </button>
+                          {expandedRun === h.id && (
+                            <div className="history-detail">
+                              <div className="history-meta">
+                                {new Date(h.run_at).toLocaleString()} · {h.notes}
+                              </div>
+                              {h.items.length === 0 ? (
+                                <div className="history-meta">No per-item trace recorded for this run.</div>
+                              ) : (
+                                h.items.map((i, idx) => (
+                                  <div className="history-item" key={idx}>
+                                    <span className={`history-action ${i.action.replace(/\s/g, '-')}`}>{i.action}</span>
+                                    <span className="history-name">{i.name}</span>
+                                    <span className="history-note">{i.detail}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -406,11 +482,16 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
               ) : (
                 <>
                   <button
-                    className="btn-secondary"
+                    className={`btn-secondary${openAccount?.enriched_at ? ' done' : ''}`}
                     disabled={enrichingId !== null}
+                    title={
+                      openAccount?.enriched_at
+                        ? `Enriched ${timeAgo(openAccount.enriched_at)} (${new Date(openAccount.enriched_at).toLocaleString()}) — click to run again`
+                        : "Enrich this account's contacts via Apollo"
+                    }
                     onClick={() => openAccount && enrichAccount(openAccount.sfdc_id, openAccount.name)}
                   >
-                    {enrichingId === openId ? 'Enriching…' : '⚡ Enrich account'}
+                    {enrichingId === openId ? 'Enriching…' : openAccount?.enriched_at ? '⚡ Enriched — run again' : '⚡ Enrich account'}
                   </button>
                   <button className="btn-delete" onClick={() => setConfirmDelete(true)} title="Untrack this account">
                     🗑 Untrack

@@ -34,11 +34,15 @@ export async function logRun(entry: {
   items_processed: number;
   errors: number;
   notes: string;
+  account_sfdc_id?: string | null;
+  items?: { name: string; account_sfdc_id: string | null; action: string; detail: string }[];
 }): Promise<void> {
   try {
     const { coll } = await import('./db');
     const runLog = await coll('enrichment_run_log');
-    await runLog.insertOne({ ...entry, run_at: new Date().toISOString() });
+    // Cap the per-item trace so one run can't bloat the log document.
+    const items = entry.items?.slice(0, 200);
+    await runLog.insertOne({ ...entry, items, run_at: new Date().toISOString() });
   } catch (e) {
     console.error('run log insert failed:', e);
   }

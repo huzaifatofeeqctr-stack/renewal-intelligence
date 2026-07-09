@@ -34,7 +34,16 @@ const JOBS = [
   },
 ];
 
-export default function RunNowBar() {
+function timeAgo(iso: string): string {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: string | null }) {
   const router = useRouter();
   const [running, setRunning] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -56,18 +65,25 @@ export default function RunNowBar() {
   return (
     <div className="run-bar">
       <div className="run-icons">
-        {JOBS.map((j) => (
-          <button
-            key={j.path}
-            className={`run-icon${running === j.path ? ' running' : ''}`}
-            data-tip={j.tip}
-            aria-label={j.label}
-            disabled={running !== null}
-            onClick={() => run(j)}
-          >
-            {running === j.path ? '⏳' : j.icon}
-          </button>
-        ))}
+        {JOBS.map((j) => {
+          const isEnrich = j.path === '/api/enrich/apollo';
+          const done = isEnrich && Boolean(lastEnrichRunAt);
+          const tip = done
+            ? `${j.tip} — last ran ${timeAgo(lastEnrichRunAt!)} (${new Date(lastEnrichRunAt!).toLocaleString()})`
+            : j.tip;
+          return (
+            <button
+              key={j.path}
+              className={`run-icon${running === j.path ? ' running' : ''}${done ? ' done' : ''}`}
+              data-tip={tip}
+              aria-label={j.label}
+              disabled={running !== null}
+              onClick={() => run(j)}
+            >
+              {running === j.path ? '⏳' : j.icon}
+            </button>
+          );
+        })}
       </div>
       {result && (
         <div className="grid-toast run-bar-toast" onClick={() => setResult(null)}>

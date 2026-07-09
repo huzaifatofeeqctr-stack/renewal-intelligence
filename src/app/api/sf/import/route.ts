@@ -31,6 +31,13 @@ export async function POST(req: NextRequest) {
       items_processed: result.contacts,
       errors: result.errors,
       notes: `imported account ${id} by ${user?.email ?? 'cron'}`,
+      account_sfdc_id: id,
+      items: result.perAccount.map((a) => ({
+        name: a.name,
+        account_sfdc_id: a.sfdc_id,
+        action: 'imported',
+        detail: `${a.contacts} contacts pulled (${a.junk} junk-flagged)${a.renewal_date ? ` · renewal ${a.renewal_date}` : ''}`,
+      })),
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {

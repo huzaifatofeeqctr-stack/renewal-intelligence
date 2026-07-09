@@ -69,6 +69,12 @@ async function run(req: NextRequest) {
     items_processed: result.accounts + result.contacts,
     errors: result.errors,
     notes: `${fullMode ? "full" : "tracked"} sync: accounts=${result.accounts} contacts=${result.contacts}`,
+    items: result.perAccount.map((a) => ({
+      name: a.name,
+      account_sfdc_id: a.sfdc_id,
+      action: 'synced',
+      detail: `${a.contacts} contacts pulled (${a.junk} junk-flagged)${a.renewal_date ? ` · renewal ${a.renewal_date}` : ''}`,
+    })),
   });
 
   return NextResponse.json({ tracked: ids.length, ...result });

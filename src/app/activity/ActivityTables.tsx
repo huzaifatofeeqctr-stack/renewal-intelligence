@@ -11,6 +11,7 @@ export interface RunRow {
   items_processed: number;
   errors: number;
   notes: string;
+  items: { name: string; action: string; detail: string }[];
 }
 
 export interface JobRow {
@@ -166,6 +167,20 @@ export default function ActivityTables({ runs, jobs }: { runs: RunRow[]; jobs: J
                   <DetailRow key={k} label={k} value={v} />
                 ))}
               </div>
+              {openRun.items.length > 0 && (
+                <div className="detail-raw">
+                  <h4>Per-item trace ({openRun.items.length})</h4>
+                  <div className="history-list">
+                    {openRun.items.map((i, idx) => (
+                      <div className="history-item" key={idx}>
+                        <span className={`history-action ${i.action.replace(/\s/g, '-')}`}>{i.action}</span>
+                        <span className="history-name">{i.name}</span>
+                        <span className="history-note">{i.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="detail-raw">
                 <h4>Raw notes</h4>
                 <pre>{openRun.notes || '—'}</pre>

@@ -652,3 +652,37 @@ tr:hover td { background: var(--surface); }
   padding: 10px 12px; font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 0;
 }
 .detail-raw pre.bad { color: var(--critical); border-color: var(--critical); }
+
+/* ── enriched (green) states on run buttons ────────────────────────────── */
+.card-btn.done, .btn-secondary.done { color: var(--ok); border-color: var(--ok); }
+.card-btn.done:hover, .btn-secondary.done:hover { filter: brightness(1.2); }
+.run-icon.done { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+
+/* ── per-account history / per-item run trace ──────────────────────────── */
+.history-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.history-entry { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.history-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; padding: 10px 12px; background: none; border: none; color: inherit;
+  font: inherit; font-size: 13px; cursor: pointer; text-align: left;
+}
+.history-head:hover { background: rgba(255, 255, 255, 0.03); }
+.history-title { display: flex; align-items: center; gap: 8px; }
+.history-when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.history-detail { border-top: 1px solid var(--border); padding: 10px 12px; }
+.history-meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; word-break: break-word; }
+.history-item {
+  display: flex; gap: 10px; align-items: baseline; padding: 5px 0;
+  border-bottom: 1px solid var(--border); font-size: 12.5px;
+}
+.history-item:last-child { border-bottom: none; }
+.history-action {
+  flex: none; font-size: 11px; padding: 1px 8px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em;
+}
+.history-action.enriched, .history-action.verified, .history-action.synced, .history-action.imported { color: var(--ok); border-color: var(--ok); }
+.history-action.scanned { color: var(--info); border-color: var(--info); }
+.history-action.no-data { color: var(--warning); border-color: var(--warning); }
+.history-action.error { color: var(--critical); border-color: var(--critical); }
+.history-name { flex: none; font-weight: 600; }
+.history-note { color: var(--muted); word-break: break-word; }

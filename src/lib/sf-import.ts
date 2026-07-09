@@ -38,9 +38,17 @@ function idList(ids: string[]): string {
 // Imports/refreshes the given Salesforce accounts and all their contacts into
 // MongoDB (denormalized, junk-gated). Used by the import UI and the daily
 // tracked-accounts refresh.
+export interface PerAccountImport {
+  sfdc_id: string;
+  name: string;
+  contacts: number;
+  junk: number;
+  renewal_date: string | null;
+}
+
 export async function importAccounts(
   accountIds: string[]
-): Promise<{ accounts: number; contacts: number; junk: number; errors: number }> {
+): Promise<{ accounts: number; contacts: number; junk: number; errors: number; perAccount: PerAccountImport[] }> {
   const accountsColl = await coll<AccountDoc>('accounts');
   const contactsColl = await coll<ContactDoc>('contacts');
   const now = new Date().toISOString();
@@ -48,6 +56,7 @@ export async function importAccounts(
   let contactsN = 0;
   let junk = 0;
   let errors = 0;
+  const perAccount: PerAccountImport[] = [];
 
   for (const ids of chunk(accountIds, 100)) {
     const sfAccounts = await soql<SfAccount>(
@@ -96,6 +105,13 @@ export async function importAccounts(
       accountsN += sfAccounts.length;
     }
 
+    const perAccountThisChunk = new Map(
+      sfAccounts.map((a) => [
+        a.Id,
+        { sfdc_id: a.Id, name: a.Name, contacts: 0, junk: 0, renewal_date: renewalByAccount.get(a.Id) ?? null },
+      ])
+    );
+
     const sfContacts = await soql<SfContact>(
       `SELECT Id, FirstName, LastName, Email, Title, AccountId FROM Contact WHERE AccountId IN (${idList(ids)})`
     );
@@ -103,6 +119,11 @@ export async function importAccounts(
       const ops = sfContacts.map((c) => {
         const verdict = junkCheck({ email: c.Email, firstName: c.FirstName, lastName: c.LastName });
         if (verdict.isJunk) junk++;
+        const pa = c.AccountId ? perAccountThisChunk.get(c.AccountId) : undefined;
+        if (pa) {
+          pa.contacts++;
+          if (verdict.isJunk) pa.junk++;
+        }
         const account = c.AccountId ? accountById.get(c.AccountId) : undefined;
         return {
           updateOne: {
@@ -140,7 +161,8 @@ export async function importAccounts(
       errors += res.getWriteErrors?.().length ?? 0;
       contactsN += sfContacts.length;
     }
+    perAccount.push(...perAccountThisChunk.values());
   }
 
-  return { accounts: accountsN, contacts: contactsN, junk, errors };
+  return { accounts: accountsN, contacts: contactsN, junk, errors, perAccount };
 }
