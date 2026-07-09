@@ -113,9 +113,6 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
     setBusy(false);
   }
 
-    setRunning(null);
-  }
-
   const severitySelect = (value: string, onChange: (v: string) => void) => (
     <select value={value} disabled={busy} onChange={(e) => onChange(e.target.value)}>
       {SEVERITIES.map((s) => (
