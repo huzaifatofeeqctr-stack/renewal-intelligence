@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
     await contacts.updateOne({ sfdc_id: 'DEMO-C-002' }, { $set: updates });
     trace.push({
       phase: '4. apollo enrichment (fill-only-empty)',
-      detail: 'David Chen enriched — only blank fields were written; in live mode Email/Title also mirror back to the Salesforce contact',
+      detail: 'David Chen enriched — only blank fields were written — in Mongo only; Salesforce is never written',
       data: { filled: Object.keys(updates).filter((k) => !['updated_at', 'enriched_at'].includes(k)) },
     });
 
@@ -233,7 +233,7 @@ export async function GET(req: NextRequest) {
     }
     trace.push({
       phase: '5. signal engine (Apollo simulated)',
-      detail: `Signals stored with signal_key dedup. Salesforce Task mirroring is SKIPPED in dry-run (would create real Tasks). Slack ${process.env.SLACK_WEBHOOK_URL ? `sent for ${slackSent} new signal(s)` : 'skipped — SLACK_WEBHOOK_URL not set'}.`,
+      detail: `Signals stored with signal_key dedup. Salesforce is read-only for this app — no Tasks or field writes, ever. Slack ${process.env.SLACK_WEBHOOK_URL ? `sent for ${slackSent} new signal(s)` : 'skipped — SLACK_WEBHOOK_URL not set'}.`,
       data: emitted,
     });
 

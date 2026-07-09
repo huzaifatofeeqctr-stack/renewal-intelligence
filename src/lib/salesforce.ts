@@ -1,3 +1,7 @@
+// Salesforce client — STRICTLY READ-ONLY.
+// Policy (2026-07-09): this app never writes to Salesforce. Only SOQL reads.
+// Signals, enrichment results, and all derived data live in MongoDB only.
+
 interface SfToken {
   access_token: string;
   instance_url: string;
@@ -37,7 +41,7 @@ async function getToken(): Promise<SfToken> {
   return cachedToken;
 }
 
-async function sfFetch(path: string, init?: RequestInit): Promise<Response> {
+export async function sfFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = await getToken();
   return fetch(`${token.instance_url}${path}`, {
     ...init,
@@ -64,38 +68,4 @@ export async function soql<T = Record<string, unknown>>(query: string): Promise<
     path = page.done ? null : page.nextRecordsUrl ?? null;
   }
   return records;
-}
-
-export async function createTask(fields: {
-  Subject: string;
-  Description: string;
-  WhoId?: string;
-  Priority?: string;
-  ActivityDate?: string;
-}): Promise<string | null> {
-  const res = await sfFetch('/services/data/v60.0/sobjects/Task', {
-    method: 'POST',
-    body: JSON.stringify({ Status: 'Not Started', Priority: 'High', ...fields }),
-  });
-  if (!res.ok) {
-    console.error('SF Task create failed:', res.status, await res.text());
-    return null;
-  }
-  const data = (await res.json()) as { id: string };
-  return data.id;
-}
-
-export async function updateContact(
-  sfdcId: string,
-  fields: Record<string, string>
-): Promise<boolean> {
-  const res = await sfFetch(`/services/data/v60.0/sobjects/Contact/${sfdcId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(fields),
-  });
-  if (!res.ok) {
-    console.error('SF Contact update failed:', res.status, await res.text());
-    return false;
-  }
-  return true;
 }

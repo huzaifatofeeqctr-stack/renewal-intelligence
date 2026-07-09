@@ -3,7 +3,6 @@ import { requireCronOrAdmin, logRun } from '@/lib/auth';
 import { getWorkspaceSettings } from '@/lib/workspace';
 import { coll } from '@/lib/db';
 import { matchPerson, normalizeDomain, currentRoleAtAccount, titlesEquivalent } from '@/lib/apollo';
-import { updateContact } from '@/lib/salesforce';
 import { emitSignal } from '@/lib/signals';
 import type { ContactDoc } from '@/lib/types';
 
@@ -17,8 +16,8 @@ function sleep(ms: number): Promise<void> {
 }
 
 // POST (cron auth): enriches incomplete, non-junk contacts via Apollo
-// people/match in renewal-priority order. Fill-only-empty writeback to Mongo +
-// Salesforce. Also detects job/title changes: when Apollo's current title or
+// people/match in renewal-priority order. Fill-only-empty into Mongo (Salesforce
+// is never written). Also detects job/title changes: when Apollo's current title or
 // company disagrees with the CRM, a signal fires.
 export async function POST(req: NextRequest) {
   try {
@@ -155,15 +154,8 @@ async function run(req: NextRequest) {
         noData++;
       }
 
+      // Salesforce is read-only for this app — enriched data lives in Mongo only.
       await contacts.updateOne({ sfdc_id: c.sfdc_id }, { $set: updates });
-
-      // Mirror filled blanks back to Salesforce (standard fields only).
-      const sfFields: Record<string, string> = {};
-      if (typeof updates.email === 'string') sfFields.Email = updates.email;
-      if (typeof updates.title === 'string' && !c.title) sfFields.Title = updates.title;
-      if (Object.keys(sfFields).length > 0) {
-        await updateContact(c.sfdc_id, sfFields);
-      }
     } catch (e) {
       errors++;
       const message = e instanceof Error ? e.message : String(e);

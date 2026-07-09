@@ -1,11 +1,10 @@
 import { coll, isDuplicateKeyError } from './db';
-import { createTask } from './salesforce';
 import { notifySlack } from './slack';
 import type { NewSignal, SignalDoc } from './types';
 
-// Creates a signal end-to-end: store (dedup on signal_key), mirror to a
-// Salesforce Task for critical/warning, notify Slack exactly once.
-// Returns true when the signal was new.
+// Creates a signal end-to-end: store (dedup on signal_key) and notify Slack
+// exactly once. Salesforce is READ-ONLY for this app — signals are never
+// mirrored back as Tasks or objects.
 export async function emitSignal(signal: NewSignal): Promise<boolean> {
   const signals = await coll<SignalDoc>('signals');
 
@@ -35,27 +34,6 @@ export async function emitSignal(signal: NewSignal): Promise<boolean> {
   } catch (e) {
     if (isDuplicateKeyError(e)) return false; // already emitted — not an error
     throw e;
-  }
-
-  if (signal.severity !== 'info') {
-    const due = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const taskId = await createTask({
-      Subject: `[Renewal Signal] ${signal.summary}`.slice(0, 255),
-      Description: [
-        `Renewal Intelligence signal (${signal.severity}, source: ${signal.source})`,
-        '',
-        signal.summary,
-        '',
-        `Previous: ${signal.previous_value}`,
-        `New: ${signal.new_value}`,
-        `Detected: ${signal.detected_at}`,
-      ].join('\n'),
-      WhoId: signal.contact_sfdc_id || undefined,
-      ActivityDate: due,
-    });
-    if (taskId) {
-      await signals.updateOne({ signal_key: signal.signal_key }, { $set: { sfdc_task_id: taskId } });
-    }
   }
 
   // notification_log's unique index guarantees once-per-signal_key across re-runs.
