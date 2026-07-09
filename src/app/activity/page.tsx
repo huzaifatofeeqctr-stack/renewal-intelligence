@@ -1,6 +1,7 @@
 import { coll } from '@/lib/db';
 import { requireUser } from '@/lib/require-user';
 import type { RunLogDoc, JobDoc } from '@/lib/types';
+import ActivityTables, { RunRow, JobRow } from './ActivityTables';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,15 +17,38 @@ function timeAgo(iso: string): string {
 export default async function ActivityPage() {
   await requireUser();
 
-  let runs: (RunLogDoc & { _id: { toString(): string } })[] = [];
-  let jobs: (JobDoc & { _id: { toString(): string } })[] = [];
+  let runs: RunRow[] = [];
+  let jobs: JobRow[] = [];
   let loadError: string | null = null;
   try {
     const [runLog, jobsColl] = await Promise.all([coll<RunLogDoc>('enrichment_run_log'), coll<JobDoc>('jobs')]);
-    [runs, jobs] = await Promise.all([
-      runLog.find({}).sort({ run_at: -1 }).limit(100).toArray() as Promise<typeof runs>,
-      jobsColl.find({}).sort({ created_at: -1 }).limit(20).toArray() as Promise<typeof jobs>,
+    const [rawRuns, rawJobs] = await Promise.all([
+      runLog.find({}).sort({ run_at: -1 }).limit(100).toArray(),
+      jobsColl.find({}).sort({ created_at: -1 }).limit(20).toArray(),
     ]);
+    runs = rawRuns.map((r) => ({
+      id: r._id.toString(),
+      workflow_name: r.workflow_name,
+      run_at: r.run_at,
+      items_in: r.items_in ?? 0,
+      items_skipped_junk: r.items_skipped_junk ?? 0,
+      items_processed: r.items_processed ?? 0,
+      errors: r.errors ?? 0,
+      notes: r.notes ?? '',
+    }));
+    jobs = rawJobs.map((j) => ({
+      id: j._id.toString(),
+      type: j.type,
+      status: j.status,
+      account_sfdc_id: j.params?.account_sfdc_id ?? null,
+      created_at: j.created_at,
+      created_by: j.created_by,
+      started_at: j.started_at,
+      finished_at: j.finished_at,
+      attempts: j.attempts ?? 0,
+      result: j.result,
+      error: j.error,
+    }));
   } catch (e) {
     loadError = e instanceof Error ? e.message : 'failed to load';
   }
@@ -39,7 +63,9 @@ export default async function ActivityPage() {
   return (
     <main>
       <h1>Activity</h1>
-      <p className="subtitle">Every sync, enrichment, watch, and intel run — plus the background job queue.</p>
+      <p className="subtitle">
+        Every sync, enrichment, watch, and intel run — click a row for the full input/output detail.
+      </p>
 
       {loadError ? (
         <div className="empty">Could not reach MongoDB ({loadError}).</div>
@@ -68,73 +94,7 @@ export default async function ActivityPage() {
             </div>
           </div>
 
-          {jobs.length > 0 && (
-            <div className="panel">
-              <h2>Background jobs</h2>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Type</th>
-                      <th>Status</th>
-                      <th>Queued</th>
-                      <th>Finished</th>
-                      <th>Result</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobs.map((j) => (
-                      <tr key={j._id.toString()}>
-                        <td>{j.type.replaceAll('_', ' ')}{j.params.account_sfdc_id ? ' (one account)' : ''}</td>
-                        <td>
-                          <span className={`badge ${j.status === 'failed' ? 'critical' : j.status === 'done' ? 'ok' : 'muted'}`}>
-                            {j.status}
-                          </span>
-                        </td>
-                        <td>{timeAgo(j.created_at)}</td>
-                        <td>{j.finished_at ? timeAgo(j.finished_at) : '—'}</td>
-                        <td>{j.error ?? j.result ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="panel">
-            <h2>Run log</h2>
-            {runs.length === 0 ? (
-              <div className="empty">No runs recorded yet.</div>
-            ) : (
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Workflow</th>
-                      <th>When</th>
-                      <th>In</th>
-                      <th>Processed</th>
-                      <th>Errors</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {runs.map((r) => (
-                      <tr key={r._id.toString()}>
-                        <td>{r.workflow_name}</td>
-                        <td title={new Date(r.run_at).toLocaleString()}>{timeAgo(r.run_at)}</td>
-                        <td>{r.items_in}</td>
-                        <td>{r.items_processed}</td>
-                        <td>{r.errors > 0 ? <span className="badge critical">{r.errors}</span> : 0}</td>
-                        <td className="notes-cell">{r.notes}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <ActivityTables runs={runs} jobs={jobs} />
         </>
       )}
     </main>
