@@ -64,6 +64,8 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
   const [search, setSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [enrichingId, setEnrichingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   async function open(id: string, preset: SeverityFilter = 'all') {
     setOpenId(id);
@@ -127,6 +129,46 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
     }
   }
 
+  async function enrichAccount(id: string, name: string) {
+    setEnrichingId(id);
+    setToast(`Enriching ${name}…`);
+    try {
+      const res = await fetch(`/api/enrich/apollo?account=${id}`, { method: 'POST' });
+      const data = (await res.json().catch(() => ({}))) as {
+        candidates?: number;
+        enriched?: number;
+        signals?: number;
+        errors?: number;
+        firstError?: string | null;
+        error?: string;
+      };
+      if (res.ok) {
+        setToast(
+          data.candidates === 0
+            ? `${name}: nothing to enrich — all contacts are complete or on cooldown.`
+            : `${name}: enriched ${data.enriched}/${data.candidates}, ${data.signals ?? 0} signal(s)${
+                data.errors ? `, ${data.errors} error(s)` : ''
+              }${data.firstError?.includes('insufficient credits') ? ' — Apollo is out of credits' : ''}`
+        );
+        router.refresh();
+      } else {
+        setToast(`${name}: ${data.error ?? 'enrichment failed'}`);
+      }
+    } catch {
+      setToast(`${name}: enrichment request failed`);
+    }
+    setEnrichingId(null);
+  }
+
+  async function untrackFromCard(id: string, name: string) {
+    if (!window.confirm(`Untrack ${name}? Removes it and its contacts/signals from the workspace (Salesforce is untouched).`)) return;
+    const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setToast(`${name} untracked.`);
+      router.refresh();
+    }
+  }
+
   const q = search.toLowerCase().trim();
   const visibleSignals = (detail?.signals ?? []).filter(
     (s) =>
@@ -144,6 +186,11 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
 
   return (
     <>
+      {toast && (
+        <div className="grid-toast" onClick={() => setToast(null)}>
+          {toast}
+        </div>
+      )}
       <div className="grid">
         {accounts.map((a) => (
           <div className="card card-link" key={a.sfdc_id} onClick={() => open(a.sfdc_id)} role="button" tabIndex={0}>
@@ -188,6 +235,29 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
                 </span>
               )}
               {a.critical + a.warning + a.info === 0 && <span className="badge ok">healthy</span>}
+            </div>
+            <div className="card-actions">
+              <button
+                className="card-btn"
+                disabled={enrichingId !== null}
+                title="Enrich this account's contacts via Apollo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  enrichAccount(a.sfdc_id, a.name);
+                }}
+              >
+                {enrichingId === a.sfdc_id ? 'Enriching…' : '⚡ Enrich'}
+              </button>
+              <button
+                className="card-btn danger"
+                title="Untrack this account"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  untrackFromCard(a.sfdc_id, a.name);
+                }}
+              >
+                🗑
+              </button>
             </div>
           </div>
         ))}
@@ -322,6 +392,7 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
             </div>
 
             <div className="modal-foot">
+              {toast && <span className="modal-toast">{toast}</span>}
               {confirmDelete ? (
                 <span className="delete-confirm">
                   Remove this account and its contacts/signals from the workspace? (Salesforce is untouched)
@@ -333,9 +404,18 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
                   </button>
                 </span>
               ) : (
-                <button className="btn-delete" onClick={() => setConfirmDelete(true)} title="Untrack this account">
-                  🗑 Untrack
-                </button>
+                <>
+                  <button
+                    className="btn-secondary"
+                    disabled={enrichingId !== null}
+                    onClick={() => openAccount && enrichAccount(openAccount.sfdc_id, openAccount.name)}
+                  >
+                    {enrichingId === openId ? 'Enriching…' : '⚡ Enrich account'}
+                  </button>
+                  <button className="btn-delete" onClick={() => setConfirmDelete(true)} title="Untrack this account">
+                    🗑 Untrack
+                  </button>
+                </>
               )}
             </div>
           </div>

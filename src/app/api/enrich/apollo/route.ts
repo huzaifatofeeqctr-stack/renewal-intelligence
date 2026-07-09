@@ -38,11 +38,14 @@ async function run(req: NextRequest) {
   const contacts = await coll<ContactDoc>('contacts');
   const cooldown = new Date(Date.now() - settings.enrich_cooldown_days * 24 * 60 * 60 * 1000).toISOString();
 
+  // Optional ?account=<sfdc_id> scopes the run to one account (card/popup button).
+  const accountScope = req.nextUrl.searchParams.get('account');
   const candidates = await contacts
     .find({
       is_junk: false,
       first_name: { $ne: null },
       last_name: { $ne: null },
+      ...(accountScope ? { account_sfdc_id: accountScope } : {}),
       $and: [
         { $or: [{ email: null }, { title: null }, { linkedin_url: null }] },
         { $or: [{ enriched_at: null }, { enriched_at: { $lt: cooldown } }] },
