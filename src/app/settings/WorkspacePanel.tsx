@@ -50,6 +50,42 @@ function hourLabel(h: number): string {
   return `${display}:00 ${ampm}`;
 }
 
+const SAMPLE: Record<string, string> = {
+  contact: 'Sarah Kim',
+  account: 'Glow Recipe',
+  previous: 'VP Retention Marketing',
+  new: 'SVP Lifecycle Marketing',
+  owner: 'charlie.webber@postscript.io',
+  date: 'Jul 9, 2026',
+  summary: 'Sarah Kim changed title from VP Retention Marketing to SVP Lifecycle Marketing at Glow Recipe',
+};
+
+const EMOJI: Record<string, string> = {
+  rotating_light: '🚨',
+  warning: '⚠️',
+  bust_in_silhouette: '👤',
+  information_source: 'ℹ️',
+  fire: '🔥',
+  bell: '🔔',
+  chart_with_upwards_trend: '📈',
+  eyes: '👀',
+  tada: '🎉',
+};
+
+function slackPreviewHtml(template: string): string {
+  let t = template
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  for (const [k, v] of Object.entries(SAMPLE)) {
+    t = t.replaceAll(`{${k}}`, v);
+  }
+  t = t.replace(/:([a-z0-9_+-]+):/g, (m, name: string) => EMOJI[name] ?? m);
+  t = t.replace(/\*([^*\n]+)\*/g, '<strong>$1</strong>');
+  t = t.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+  return t.replace(/\n/g, '<br/>');
+}
+
 const JOBS = [
   { label: 'Sync Salesforce now', method: 'GET', path: '/api/cron/sf-sync?force=1' },
   { label: 'Run enrichment batch', method: 'POST', path: '/api/enrich/apollo' },
@@ -63,6 +99,8 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
   const [busy, setBusy] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
   const [running, setRunning] = useState<string | null>(null);
+  const [editingTpl, setEditingTpl] = useState<{ key: keyof Ws & string; label: string } | null>(null);
+  const [draft, setDraft] = useState('');
 
   async function save(patch: Partial<Ws>) {
     setWs((prev) => ({ ...prev, ...patch }));
@@ -357,20 +395,66 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             ['slack_template_new_stakeholder', 'New stakeholder'],
           ] as const
         ).map(([key, label]) => (
-          <div className="icp-block" key={key}>
-            <strong>{label}</strong>
-            <textarea
-              defaultValue={ws[key]}
-              rows={4}
-              onBlur={(e) => {
-                if (e.target.value.trim() && e.target.value.trim() !== ws[key]) {
-                  save({ [key]: e.target.value.trim() } as Partial<Ws>);
-                }
-              }}
-            />
+          <div
+            className="tpl-card"
+            key={key}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              setDraft(String(ws[key]));
+              setEditingTpl({ key, label });
+            }}
+          >
+            <div className="tpl-card-head">
+              <strong>{label}</strong>
+              <span className="badge muted">click to edit</span>
+            </div>
+            <div className="slack-preview" dangerouslySetInnerHTML={{ __html: slackPreviewHtml(String(ws[key])) }} />
           </div>
         ))}
       </div>
+      )}
+
+      {editingTpl && (
+        <div className="modal-backdrop" onClick={() => setEditingTpl(null)}>
+          <div className="modal tpl-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <h2>{editingTpl.label}</h2>
+                <div className="meta">Placeholders: {'{contact} {account} {previous} {new} {owner} {date} {summary}'}</div>
+              </div>
+              <div className="modal-head-actions">
+                <button className="modal-close" onClick={() => setEditingTpl(null)} aria-label="Close">✕</button>
+              </div>
+            </div>
+            <div className="modal-body tpl-editor">
+              <div className="icp-block">
+                <strong>Template</strong>
+                <textarea value={draft} rows={8} onChange={(e) => setDraft(e.target.value)} autoFocus />
+              </div>
+              <div className="icp-block">
+                <strong>Preview — how it will look in Slack</strong>
+                <div className="slack-preview slack-preview-live">
+                  <span className="slack-app">🔔 Renewal Intelligence <small>APP</small></span>
+                  <div dangerouslySetInnerHTML={{ __html: slackPreviewHtml(draft) }} />
+                </div>
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button className="btn-clear" onClick={() => setEditingTpl(null)}>Cancel</button>
+              <button
+                className="btn-primary"
+                disabled={busy || !draft.trim()}
+                onClick={async () => {
+                  await save({ [editingTpl.key]: draft.trim() } as Partial<Ws>);
+                  setEditingTpl(null);
+                }}
+              >
+                Save template
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {section === 'run-now' && (
