@@ -55,6 +55,7 @@ async function run(req: NextRequest) {
   let noData = 0;
   let signals = 0;
   let errors = 0;
+  let firstError: string | null = null;
 
   for (const c of candidates) {
     try {
@@ -161,6 +162,9 @@ async function run(req: NextRequest) {
       }
     } catch (e) {
       errors++;
+      if (!firstError) {
+        firstError = `${c.sfdc_id}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 500);
+      }
       console.error(`apollo enrich failed for ${c.sfdc_id}:`, e);
     }
   }
@@ -174,5 +178,5 @@ async function run(req: NextRequest) {
     notes: `budget=${MATCH_BUDGET} enriched=${enrichedCount} noData=${noData} signals=${signals}`,
   });
 
-  return NextResponse.json({ candidates: candidates.length, enriched: enrichedCount, noData, signals, errors });
+  return NextResponse.json({ candidates: candidates.length, enriched: enrichedCount, noData, signals, errors, firstError });
 }
