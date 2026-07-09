@@ -19,40 +19,47 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body>
-        <div className="shell">
-          {user ? (
-            <nav className="nav">
-              <span className="brand">Renewal Intelligence</span>
-              <Link href="/">Accounts</Link>
-              <Link href="/signals">Signals</Link>
-              <Link href="/contacts">Contacts</Link>
-              <Link href="/industry">Industry Intel</Link>
-              <Link href="/import">Import</Link>
-              <div className="nav-user">
-                <span className="avatar" title={user.email}>
-                  {user.name
-                    .split(/\s+/)
-                    .map((p) => p[0])
-                    .join('')
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </span>
-                <div className="user-menu">
-                  <div className="user-menu-header">
+        {user ? (
+          <div className="app">
+            <aside className="sidebar">
+              <Link href="/" className="brand">
+                Renewal<br />Intelligence
+              </Link>
+              <nav className="side-nav">
+                <Link href="/">Accounts</Link>
+                <Link href="/signals">Signals</Link>
+                <Link href="/contacts">Contacts</Link>
+                <Link href="/industry">Industry Intel</Link>
+                <Link href="/import">Import</Link>
+              </nav>
+              <div className="side-user">
+                <Link href="/settings" className="side-user-main" title="Settings">
+                  <span className="avatar">
+                    {user.name
+                      .split(/\s+/)
+                      .map((p) => p[0])
+                      .join('')
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </span>
+                  <span className="side-user-name">
                     <strong>{user.name}</strong>
-                    <small>{user.email}</small>
-                  </div>
+                    <small>Settings</small>
+                  </span>
+                </Link>
+                <div className="side-user-links">
                   <Link href="/profile">Profile</Link>
-                  <Link href="/settings">Settings</Link>
                   <form action="/api/auth/logout" method="post">
                     <button type="submit">Sign out</button>
                   </form>
                 </div>
               </div>
-            </nav>
-          ) : null}
-          {children}
-        </div>
+            </aside>
+            <div className="content">{children}</div>
+          </div>
+        ) : (
+          <div className="shell">{children}</div>
+        )}
       </body>
     </html>
   );

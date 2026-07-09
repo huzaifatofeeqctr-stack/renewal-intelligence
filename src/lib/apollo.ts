@@ -166,11 +166,20 @@ function normalizeTitle(title: string): string {
 }
 
 // Only a REAL title change should signal — formatting variants must not.
-export function titlesEquivalent(a: string, b: string): boolean {
+// `extraEquivalences`: workspace-configured lines of "Title A = Title B".
+export function titlesEquivalent(a: string, b: string, extraEquivalences?: string): boolean {
   const na = normalizeTitle(a);
   const nb = normalizeTitle(b);
   if (!na || !nb) return true; // nothing to compare — don't signal on blanks
-  return na === nb || na.includes(nb) || nb.includes(na);
+  if (na === nb || na.includes(nb) || nb.includes(na)) return true;
+  if (extraEquivalences) {
+    for (const line of extraEquivalences.split('\n')) {
+      const [left, right] = line.split('=').map((p) => normalizeTitle(p ?? ''));
+      if (!left || !right) continue;
+      if ((na === left && nb === right) || (na === right && nb === left)) return true;
+    }
+  }
+  return false;
 }
 
 export function domainsMatch(a: string, b: string): boolean {

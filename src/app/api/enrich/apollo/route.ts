@@ -110,7 +110,7 @@ async function run(req: NextRequest) {
         const roleAtAccount = currentRoleAtAccount(person, accountDomain, c.account_name ?? '');
         const hasAnyCurrentRole = person.employment.some((e) => e.current) || Boolean(person.org_name);
 
-        if (!roleAtAccount && hasAnyCurrentRole && person.org_name) {
+        if (!roleAtAccount && hasAnyCurrentRole && person.org_name && settings.signal_company_change_enabled) {
           const isNew = await emitSignal({
             signal_key: `${c.sfdc_id}|job_change_new_company|${person.org_name}`,
             account_sfdc_id: c.account_sfdc_id ?? undefined,
@@ -118,7 +118,7 @@ async function run(req: NextRequest) {
             account_name: c.account_name ?? '',
             contact_name: contactName,
             signal_type: 'job_change_new_company',
-            severity: 'critical',
+            severity: settings.signal_company_change_severity,
             summary: `${contactName} appears to have left ${c.account_name} — Apollo shows them at ${person.org_name} with no current role at ${c.account_name}`,
             previous_value: c.account_name ?? '',
             new_value: person.org_name,
@@ -132,7 +132,12 @@ async function run(req: NextRequest) {
           // with normalization so formatting variants don't signal.
           const titleAtAccount = roleAtAccount?.title || person.title;
           if (!c.title && titleAtAccount) updates.title = titleAtAccount;
-          if (c.title && titleAtAccount && !titlesEquivalent(c.title, titleAtAccount)) {
+          if (
+            c.title &&
+            titleAtAccount &&
+            settings.signal_title_change_enabled &&
+            !titlesEquivalent(c.title, titleAtAccount, settings.title_equivalences)
+          ) {
             const isNew = await emitSignal({
               signal_key: `${c.sfdc_id}|job_change_new_title|${titleAtAccount}`,
               account_sfdc_id: c.account_sfdc_id ?? undefined,
@@ -140,7 +145,7 @@ async function run(req: NextRequest) {
               account_name: c.account_name ?? '',
               contact_name: contactName,
               signal_type: 'job_change_new_title',
-              severity: 'warning',
+              severity: settings.signal_title_change_severity,
               summary: `${contactName} changed title from ${c.title} to ${titleAtAccount} at ${c.account_name}`,
               previous_value: c.title,
               new_value: titleAtAccount,

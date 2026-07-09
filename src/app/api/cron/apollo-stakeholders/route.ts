@@ -91,7 +91,7 @@ async function run(req: NextRequest) {
           account_name: account.name,
           contact_name: person.name,
           signal_type: 'new_stakeholder',
-          severity: 'warning',
+          severity: settings.signal_new_stakeholder_severity,
           summary: `${person.name} — ${person.title} at ${account.name} is not in the CRM${person.email ? ` (${person.email})` : ''}`,
           previous_value: '',
           new_value: person.title,

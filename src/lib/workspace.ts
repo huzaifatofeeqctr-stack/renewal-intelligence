@@ -17,6 +17,15 @@ export interface WorkspaceSettings {
   stakeholder_hour: number; // 0-23 local hour for daily discovery
   industry_intel_day: number; // 0 (Sunday) - 6 (Saturday)
   industry_intel_hour: number; // 0-23 local hour on that day
+  // Signal rules — the definitions of what fires an alert, editable in Settings.
+  signal_company_change_enabled: boolean;
+  signal_company_change_severity: 'critical' | 'warning' | 'info';
+  signal_title_change_enabled: boolean;
+  signal_title_change_severity: 'critical' | 'warning' | 'info';
+  signal_new_stakeholder_severity: 'critical' | 'warning' | 'info';
+  // Extra title equivalences, one pair per line: "Co-Founder = Founder".
+  // Pairs listed here never fire a title-change signal.
+  title_equivalences: string;
   // Slack alert templates. Placeholders: {contact} {account} {previous} {new}
   // {owner} {date} {summary}
   slack_template_new_company: string;
@@ -40,6 +49,12 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   stakeholder_hour: 7,
   industry_intel_day: 0,
   industry_intel_hour: 4,
+  signal_company_change_enabled: true,
+  signal_company_change_severity: 'critical',
+  signal_title_change_enabled: true,
+  signal_title_change_severity: 'warning',
+  signal_new_stakeholder_severity: 'warning',
+  title_equivalences: '',
   slack_template_new_company:
     ':rotating_light: *Champion Left — Action Required*\n\n*{contact}* has left *{previous}* and is now at *{new}*.\n\n*Account:* {account}\n*Account Owner:* {owner}\n*Detected:* {date}',
   slack_template_new_title:
@@ -109,6 +124,18 @@ export async function updateWorkspaceSettings(
     const v = patch[key];
     if (typeof v === 'string' && v.trim()) clean[key] = v.trim().slice(0, 1500);
   }
+  if (typeof patch.signal_company_change_enabled === 'boolean')
+    clean.signal_company_change_enabled = patch.signal_company_change_enabled;
+  if (typeof patch.signal_title_change_enabled === 'boolean')
+    clean.signal_title_change_enabled = patch.signal_title_change_enabled;
+  const SEVERITIES = ['critical', 'warning', 'info'] as const;
+  for (const key of ['signal_company_change_severity', 'signal_title_change_severity', 'signal_new_stakeholder_severity'] as const) {
+    const v = patch[key];
+    if (typeof v === 'string' && (SEVERITIES as readonly string[]).includes(v)) {
+      clean[key] = v as (typeof SEVERITIES)[number];
+    }
+  }
+  if (typeof patch.title_equivalences === 'string') clean.title_equivalences = patch.title_equivalences.slice(0, 2000);
 
   const c = await coll('workspace_settings');
   await c.updateOne(

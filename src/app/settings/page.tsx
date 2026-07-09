@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireUser } from '@/lib/require-user';
 import { getWorkspaceSettings } from '@/lib/workspace';
 import SettingsForm from './SettingsForm';
@@ -7,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 const INTEGRATIONS: { name: string; envVar: string }[] = [
   { name: 'MongoDB', envVar: 'MONGODB_URI' },
-  { name: 'Salesforce', envVar: 'SF_CLIENT_ID' },
+  { name: 'Salesforce (read-only)', envVar: 'SF_CLIENT_ID' },
   { name: 'Apollo', envVar: 'APOLLO_API_KEY' },
   { name: 'Tavily', envVar: 'TAVILY_API_KEY' },
   { name: 'Anthropic', envVar: 'ANTHROPIC_API_KEY' },
@@ -19,13 +20,29 @@ export default async function SettingsPage() {
   const workspace = user.role === 'admin' ? await getWorkspaceSettings() : null;
 
   return (
-    <main>
-      <h1>Settings</h1>
-      <p className="subtitle">Your preferences and the workspace integration status.</p>
-      <div className="stack">
+    <main className="settings-layout">
+      <aside className="settings-menu">
+        <h1>Settings</h1>
+        {workspace && (
+          <>
+            <a href="#workspace">Sync &amp; enrichment</a>
+            <a href="#signal-rules">Signal rules</a>
+            <a href="#schedule">Schedule</a>
+            <a href="#slack-templates">Slack templates</a>
+            <a href="#run-now">Run now</a>
+          </>
+        )}
+        <a href="#preferences">My preferences</a>
+        <a href="#integrations">Integrations</a>
+        <Link href="/profile">Profile →</Link>
+      </aside>
+
+      <div className="settings-content stack">
         {workspace && <WorkspacePanel initial={workspace} />}
-        <SettingsForm initial={user.settings} />
-        <div className="panel">
+        <div id="preferences">
+          <SettingsForm initial={user.settings} />
+        </div>
+        <div className="panel" id="integrations">
           <h2>Integrations</h2>
           <p className="subtitle">Configured via environment variables on the deployment.</p>
           <div className="settings-rows">
