@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronOrAdmin, logRun } from '@/lib/auth';
+import { getWorkspaceSettings, nowInZone } from '@/lib/workspace';
 import { coll } from '@/lib/db';
 import { tavilySearch } from '@/lib/tavily';
 import { summarize } from '@/lib/anthropic';
@@ -26,6 +27,15 @@ export async function GET(req: NextRequest) {
 async function run(req: NextRequest) {
   const denied = await requireCronOrAdmin(req);
   if (denied) return denied;
+
+  if (req.nextUrl.searchParams.get('scheduled') === '1') {
+    const settings = await getWorkspaceSettings();
+    const { hour, day } = nowInZone(settings.timezone);
+    if (day !== settings.industry_intel_day || hour !== settings.industry_intel_hour) {
+      const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      return NextResponse.json({ skipped: true, reason: `scheduled for ${days[settings.industry_intel_day]} ${settings.industry_intel_hour}:00 ${settings.timezone}` });
+    }
+  }
 
   const accounts = await coll('accounts');
   const intel = await coll<IndustryIntelDoc>('industry_intel');

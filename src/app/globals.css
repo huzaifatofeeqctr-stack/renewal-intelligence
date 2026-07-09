@@ -346,3 +346,57 @@ tr:hover td { background: var(--surface); }
 .run-now { margin-top: 18px; }
 .run-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .run-result { margin-top: 10px; word-break: break-all; font-size: 12px; }
+
+/* ---- schedule + templates ---- */
+
+.schedule-pair { display: flex; gap: 6px; }
+.template-hint { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+
+/* ---- responsive: iPad Pro / Air / mini / iPhone ---- */
+
+@media (max-width: 1080px) {
+  .shell { padding: 18px; }
+}
+
+@media (max-width: 860px) {
+  .grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  main > table, .modal-body table { display: block; overflow-x: auto; white-space: nowrap; }
+  .stack { max-width: 100%; }
+}
+
+@media (max-width: 640px) {
+  .shell { padding: 12px; }
+  .nav { gap: 12px; flex-wrap: wrap; row-gap: 8px; }
+  .nav .brand { width: 100%; margin-right: 0; }
+  .grid { grid-template-columns: 1fr; }
+  h1 { font-size: 18px; }
+
+  .toolbar { flex-wrap: wrap; max-width: 100%; }
+  .toolbar .search-input { min-width: 0; flex: 1 1 100%; }
+
+  .signal { flex-wrap: wrap; }
+  .signal .actions { width: 100%; justify-content: flex-end; margin-top: 6px; }
+  .actions button { padding: 8px 14px; font-size: 13px; } /* touch targets */
+
+  .pagination { flex-direction: column; align-items: flex-start; }
+  .page-links { flex-wrap: wrap; }
+  .page-links a, .page-current { padding: 8px 13px; }
+
+  .modal-backdrop { padding: 0; align-items: stretch; }
+  .modal { max-width: 100%; max-height: 100dvh; border-radius: 0; border-left: none; border-right: none; }
+  .modal-toolbar { flex-direction: column; align-items: stretch; }
+  .modal-toolbar .chips { justify-content: space-between; }
+  .chip { flex: 1; text-align: center; padding: 8px 6px; }
+  .modal-foot { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .delete-confirm { flex-wrap: wrap; gap: 6px; }
+
+  .detail-header { flex-direction: column-reverse; }
+  .score-big { align-self: flex-start; flex-direction: row; gap: 8px; font-size: 26px; padding: 8px 14px; }
+
+  .setting-row { flex-wrap: wrap; }
+  .setting-row select { width: 100%; }
+  .schedule-pair { width: 100%; }
+  .schedule-pair select { flex: 1; }
+  .run-buttons button { flex: 1 1 45%; padding: 10px; }
+  .auth-card { padding: 22px; }
+}

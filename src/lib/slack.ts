@@ -1,48 +1,15 @@
+import { getWorkspaceSettings } from './workspace';
 import type { NewSignal } from './types';
 
-function formatMessage(s: NewSignal): string {
-  switch (s.signal_type) {
-    case 'job_change_new_company':
-      return [
-        ':rotating_light: *Champion Left — Action Required*',
-        '',
-        `*${s.contact_name}* has left *${s.previous_value}* and is now at *${s.new_value}*.`,
-        '',
-        `*Account:* ${s.account_name}`,
-        `*Account Owner:* ${s.csm_email}`,
-        `*Detected:* ${s.detected_at}`,
-      ].join('\n');
-    case 'job_change_new_title':
-      return [
-        ':warning: *Title Change Detected*',
-        '',
-        `*${s.contact_name}* at *${s.account_name}* changed titles.`,
-        `*Before:* ${s.previous_value}`,
-        `*After:* ${s.new_value}`,
-        '',
-        `*Account Owner:* ${s.csm_email}`,
-        `*Detected:* ${s.detected_at}`,
-      ].join('\n');
-    case 'new_stakeholder':
-      return [
-        ':bust_in_silhouette: *New Stakeholder Identified*',
-        '',
-        `*${s.contact_name}* — *${s.new_value}* at *${s.account_name}* is not in the CRM.`,
-        'They match the ICP title filters. Consider adding them as a contact.',
-        '',
-        `*Account Owner:* ${s.csm_email}`,
-        `*Detected:* ${s.detected_at}`,
-      ].join('\n');
-    default:
-      return [
-        `:information_source: *Renewal Signal* (${s.severity})`,
-        '',
-        s.summary,
-        '',
-        `*Account:* ${s.account_name}`,
-        `*Account Owner:* ${s.csm_email}`,
-      ].join('\n');
-  }
+function render(template: string, s: NewSignal): string {
+  return template
+    .replaceAll('{contact}', s.contact_name || '—')
+    .replaceAll('{account}', s.account_name || '—')
+    .replaceAll('{previous}', s.previous_value || '—')
+    .replaceAll('{new}', s.new_value || '—')
+    .replaceAll('{owner}', s.csm_email || 'unassigned')
+    .replaceAll('{date}', new Date(s.detected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))
+    .replaceAll('{summary}', s.summary);
 }
 
 export async function notifySlack(signal: NewSignal): Promise<boolean> {
@@ -51,10 +18,28 @@ export async function notifySlack(signal: NewSignal): Promise<boolean> {
     console.warn('SLACK_WEBHOOK_URL not set — skipping notification');
     return false;
   }
+
+  // Templates are workspace-configurable in Settings.
+  const settings = await getWorkspaceSettings();
+  let text: string;
+  switch (signal.signal_type) {
+    case 'job_change_new_company':
+      text = render(settings.slack_template_new_company, signal);
+      break;
+    case 'job_change_new_title':
+      text = render(settings.slack_template_new_title, signal);
+      break;
+    case 'new_stakeholder':
+      text = render(settings.slack_template_new_stakeholder, signal);
+      break;
+    default:
+      text = `:information_source: *Renewal Signal* (${signal.severity})\n\n${signal.summary}\n\n*Account:* ${signal.account_name}\n*Account Owner:* ${signal.csm_email}`;
+  }
+
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: formatMessage(signal) }),
+    body: JSON.stringify({ text }),
   });
   if (!res.ok) {
     console.error('Slack notify failed:', res.status, await res.text());

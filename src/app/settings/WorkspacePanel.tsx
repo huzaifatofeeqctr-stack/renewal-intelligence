@@ -10,6 +10,37 @@ interface Ws {
   stakeholder_reveal_budget: number;
   stakeholder_accounts_per_run: number;
   icp_titles: string;
+  timezone: string;
+  sf_sync_hour: number;
+  stakeholder_hour: number;
+  industry_intel_day: number;
+  industry_intel_hour: number;
+  slack_template_new_company: string;
+  slack_template_new_title: string;
+  slack_template_new_stakeholder: string;
+}
+
+const TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Phoenix',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Berlin',
+  'Asia/Karachi',
+  'Asia/Kolkata',
+  'Asia/Singapore',
+  'Australia/Sydney',
+];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+
+function hourLabel(h: number): string {
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const display = h % 12 === 0 ? 12 : h % 12;
+  return `${display}:00 ${ampm}`;
 }
 
 const JOBS = [
@@ -66,7 +97,7 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
         <label className="setting-row">
           <span>
             <strong>Daily Salesforce sync</strong>
-            <small>Refresh tracked accounts + contacts on the daily schedule (5:00 UTC)</small>
+            <small>Refresh tracked accounts + contacts daily at the scheduled time below</small>
           </span>
           <input
             type="checkbox"
@@ -78,7 +109,7 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
         <label className="setting-row">
           <span>
             <strong>Stakeholder discovery</strong>
-            <small>Daily Apollo ICP-title scan (7:00 UTC), diffed against the CRM</small>
+            <small>Daily Apollo ICP-title scan at the scheduled time below, diffed against the CRM</small>
           </span>
           <input
             type="checkbox"
@@ -148,6 +179,87 @@ export default function WorkspacePanel({ initial }: { initial: Ws }) {
           </select>
         </label>
       </div>
+
+      <h2 style={{ marginTop: 22 }}>Schedule</h2>
+      <div className="settings-rows">
+        <label className="setting-row">
+          <span>
+            <strong>Timezone</strong>
+            <small>All schedule times below are interpreted in this zone</small>
+          </span>
+          <select value={ws.timezone} disabled={busy} onChange={(e) => save({ timezone: e.target.value })}>
+            {!TIMEZONES.includes(ws.timezone) && <option value={ws.timezone}>{ws.timezone}</option>}
+            {TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>{tz}</option>
+            ))}
+          </select>
+        </label>
+        <label className="setting-row">
+          <span>
+            <strong>Salesforce sync time</strong>
+            <small>Daily refresh of tracked accounts</small>
+          </span>
+          <select value={ws.sf_sync_hour} disabled={busy} onChange={(e) => save({ sf_sync_hour: Number(e.target.value) })}>
+            {HOURS.map((h) => (
+              <option key={h} value={h}>{hourLabel(h)}</option>
+            ))}
+          </select>
+        </label>
+        <label className="setting-row">
+          <span>
+            <strong>Stakeholder discovery time</strong>
+            <small>Daily Apollo ICP scan</small>
+          </span>
+          <select value={ws.stakeholder_hour} disabled={busy} onChange={(e) => save({ stakeholder_hour: Number(e.target.value) })}>
+            {HOURS.map((h) => (
+              <option key={h} value={h}>{hourLabel(h)}</option>
+            ))}
+          </select>
+        </label>
+        <label className="setting-row">
+          <span>
+            <strong>Industry intel refresh</strong>
+            <small>Weekly Tavily + Anthropic briefings</small>
+          </span>
+          <span className="schedule-pair">
+            <select value={ws.industry_intel_day} disabled={busy} onChange={(e) => save({ industry_intel_day: Number(e.target.value) })}>
+              {DAYS.map((d, i) => (
+                <option key={d} value={i}>{d}</option>
+              ))}
+            </select>
+            <select value={ws.industry_intel_hour} disabled={busy} onChange={(e) => save({ industry_intel_hour: Number(e.target.value) })}>
+              {HOURS.map((h) => (
+                <option key={h} value={h}>{hourLabel(h)}</option>
+              ))}
+            </select>
+          </span>
+        </label>
+      </div>
+
+      <h2 style={{ marginTop: 22 }}>Slack alert templates</h2>
+      <p className="template-hint">
+        Placeholders: {'{contact} {account} {previous} {new} {owner} {date} {summary}'} — Slack markdown (*bold*, :emoji:) supported.
+      </p>
+      {(
+        [
+          ['slack_template_new_company', 'Job change — new company (critical)'],
+          ['slack_template_new_title', 'Job change — new title (warning)'],
+          ['slack_template_new_stakeholder', 'New stakeholder (warning)'],
+        ] as const
+      ).map(([key, label]) => (
+        <div className="icp-block" key={key}>
+          <strong>{label}</strong>
+          <textarea
+            defaultValue={ws[key]}
+            rows={4}
+            onBlur={(e) => {
+              if (e.target.value.trim() && e.target.value.trim() !== ws[key]) {
+                save({ [key]: e.target.value.trim() } as Partial<Ws>);
+              }
+            }}
+          />
+        </div>
+      ))}
 
       <div className="icp-block">
         <strong>ICP titles for stakeholder discovery</strong>

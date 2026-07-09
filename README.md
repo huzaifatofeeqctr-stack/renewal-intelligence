@@ -61,9 +61,13 @@ repo**, each with:
 
 | Service | Custom start command | Cron schedule (service settings) |
 |---|---|---|
-| `cron-sf-sync` | `sh scripts/run-cron.sh /api/cron/sf-sync` | `0 5 * * *` |
-| `cron-apollo-stakeholders` | `sh scripts/run-cron.sh /api/cron/apollo-stakeholders` | `0 7 * * *` |
-| `cron-industry-intel` | `sh scripts/run-cron.sh /api/cron/industry-intel` | `0 4 * * 0` |
+| `cron-sf-sync` | `sh scripts/run-cron.sh "/api/cron/sf-sync?scheduled=1"` | `0 * * * *` (hourly) |
+| `cron-apollo-stakeholders` | `sh scripts/run-cron.sh "/api/cron/apollo-stakeholders?scheduled=1"` | `0 * * * *` (hourly) |
+| `cron-industry-intel` | `sh scripts/run-cron.sh "/api/cron/industry-intel?scheduled=1"` | `0 * * * *` (hourly) |
+
+Crons fire hourly, but each job only executes at the time-of-day (and
+timezone) configured in **Settings → Workspace → Schedule** — so run times
+are changeable in the app without touching Railway.
 
 On each cron service set two variables (reference the web service's values):
 

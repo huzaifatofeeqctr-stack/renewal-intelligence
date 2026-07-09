@@ -10,6 +10,18 @@ export interface WorkspaceSettings {
   stakeholder_reveal_budget: number; // reveals (credits) per discovery run
   stakeholder_accounts_per_run: number; // accounts scanned per discovery run
   icp_titles: string; // comma-separated titles for stakeholder discovery
+  // Scheduling: Railway crons fire hourly with ?scheduled=1; each job only
+  // actually runs when the current time in `timezone` matches its setting.
+  timezone: string; // IANA zone, e.g. 'America/New_York'
+  sf_sync_hour: number; // 0-23 local hour for the daily SF refresh
+  stakeholder_hour: number; // 0-23 local hour for daily discovery
+  industry_intel_day: number; // 0 (Sunday) - 6 (Saturday)
+  industry_intel_hour: number; // 0-23 local hour on that day
+  // Slack alert templates. Placeholders: {contact} {account} {previous} {new}
+  // {owner} {date} {summary}
+  slack_template_new_company: string;
+  slack_template_new_title: string;
+  slack_template_new_stakeholder: string;
   updated_at?: string;
   updated_by?: string;
 }
@@ -23,7 +35,41 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   stakeholder_accounts_per_run: 15,
   icp_titles:
     'Chief Marketing Officer, CMO, VP Marketing, VP Ecommerce, VP of Digital, Director of Ecommerce, Head of Retention, Director of Retention, Director of Lifecycle',
+  timezone: 'UTC',
+  sf_sync_hour: 5,
+  stakeholder_hour: 7,
+  industry_intel_day: 0,
+  industry_intel_hour: 4,
+  slack_template_new_company:
+    ':rotating_light: *Champion Left — Action Required*\n\n*{contact}* has left *{previous}* and is now at *{new}*.\n\n*Account:* {account}\n*Account Owner:* {owner}\n*Detected:* {date}',
+  slack_template_new_title:
+    ':warning: *Title Change Detected*\n\n*{contact}* at *{account}* changed titles.\n*Before:* {previous}\n*After:* {new}\n\n*Account Owner:* {owner}\n*Detected:* {date}',
+  slack_template_new_stakeholder:
+    ':bust_in_silhouette: *New Stakeholder Identified*\n\n*{contact}* — *{new}* at *{account}* is not in the CRM.\nThey match the ICP title filters. Consider adding them as a contact.\n\n*Account Owner:* {owner}\n*Detected:* {date}',
 };
+
+export function isValidTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Current hour (0-23) and weekday (0=Sunday) in the workspace timezone.
+export function nowInZone(tz: string): { hour: number; day: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: isValidTimezone(tz) ? tz : 'UTC',
+    hour: 'numeric',
+    hour12: false,
+    weekday: 'short',
+  }).formatToParts(new Date());
+  const hour = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10) % 24;
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const day = days.indexOf(parts.find((p) => p.type === 'weekday')?.value ?? 'Sun');
+  return { hour, day: day < 0 ? 0 : day };
+}
 
 const KEY = 'workspace';
 
@@ -50,6 +96,19 @@ export async function updateWorkspaceSettings(
   if (typeof patch.stakeholder_accounts_per_run === 'number')
     clean.stakeholder_accounts_per_run = Math.min(100, Math.max(1, Math.round(patch.stakeholder_accounts_per_run)));
   if (typeof patch.icp_titles === 'string' && patch.icp_titles.trim()) clean.icp_titles = patch.icp_titles.trim();
+  if (typeof patch.timezone === 'string' && isValidTimezone(patch.timezone)) clean.timezone = patch.timezone;
+  if (typeof patch.sf_sync_hour === 'number')
+    clean.sf_sync_hour = Math.min(23, Math.max(0, Math.round(patch.sf_sync_hour)));
+  if (typeof patch.stakeholder_hour === 'number')
+    clean.stakeholder_hour = Math.min(23, Math.max(0, Math.round(patch.stakeholder_hour)));
+  if (typeof patch.industry_intel_day === 'number')
+    clean.industry_intel_day = Math.min(6, Math.max(0, Math.round(patch.industry_intel_day)));
+  if (typeof patch.industry_intel_hour === 'number')
+    clean.industry_intel_hour = Math.min(23, Math.max(0, Math.round(patch.industry_intel_hour)));
+  for (const key of ['slack_template_new_company', 'slack_template_new_title', 'slack_template_new_stakeholder'] as const) {
+    const v = patch[key];
+    if (typeof v === 'string' && v.trim()) clean[key] = v.trim().slice(0, 1500);
+  }
 
   const c = await coll('workspace_settings');
   await c.updateOne(

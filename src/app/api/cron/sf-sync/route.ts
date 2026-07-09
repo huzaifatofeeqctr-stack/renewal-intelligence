@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronOrAdmin, logRun } from '@/lib/auth';
-import { getWorkspaceSettings } from '@/lib/workspace';
+import { getWorkspaceSettings, nowInZone } from '@/lib/workspace';
 import { coll } from '@/lib/db';
 import { soql } from '@/lib/salesforce';
 import { importAccounts } from '@/lib/sf-import';
@@ -28,6 +28,13 @@ async function run(req: NextRequest) {
   const settings = await getWorkspaceSettings();
   if (!settings.sf_sync_enabled && req.nextUrl.searchParams.get('force') !== '1') {
     return NextResponse.json({ skipped: true, reason: 'Salesforce sync is paused in workspace settings' });
+  }
+  // Hourly cron invokes with ?scheduled=1 — only run at the configured local hour.
+  if (req.nextUrl.searchParams.get('scheduled') === '1') {
+    const { hour } = nowInZone(settings.timezone);
+    if (hour !== settings.sf_sync_hour) {
+      return NextResponse.json({ skipped: true, reason: `scheduled for ${settings.sf_sync_hour}:00 ${settings.timezone}, now ${hour}:00` });
+    }
   }
 
   const fullMode = req.nextUrl.searchParams.get('mode') === 'full';

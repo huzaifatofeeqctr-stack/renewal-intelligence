@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/authn';
 import './globals.css';
@@ -6,6 +6,11 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Renewal Intelligence',
   description: 'CRM enrichment & account intelligence for renewal teams',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
