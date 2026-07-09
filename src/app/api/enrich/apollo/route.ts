@@ -8,7 +8,7 @@ import type { ContactDoc } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-const MATCH_BUDGET = 100; // people/match calls per run — each costs 1 Apollo credit
+const MATCH_BUDGET = 30; // people/match calls per request — keeps each run under the proxy timeout
 const PACE_MS = 1500; // Apollo caps people/match at 50/min — stay safely under
 
 function sleep(ms: number): Promise<void> {
