@@ -273,3 +273,76 @@ tr:hover td { background: var(--surface); }
 .score-big.bad { color: var(--critical); }
 
 .section-title { font-size: 15px; margin: 28px 0 12px; }
+
+/* ---- account modal ---- */
+
+.badge.clickable { cursor: pointer; }
+.badge.clickable:hover { filter: brightness(1.3); }
+
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(8, 10, 14, 0.72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 14px; width: 100%; max-width: 760px;
+  max-height: 86vh; display: flex; flex-direction: column;
+}
+.modal-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px 12px; border-bottom: 1px solid var(--border);
+}
+.modal-head h2 { font-size: 17px; }
+.modal-head-actions { display: flex; align-items: center; gap: 10px; }
+.modal-close {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); width: 28px; height: 28px; cursor: pointer;
+}
+.modal-close:hover { color: var(--text); }
+.modal-toolbar {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-toolbar .search-input { flex: 1; min-width: 200px; }
+.chips { display: flex; gap: 6px; }
+.chip {
+  background: transparent; border: 1px solid var(--border); border-radius: 999px;
+  color: var(--muted); padding: 4px 12px; font-size: 12px; font-weight: 600;
+  cursor: pointer; text-transform: capitalize;
+}
+.chip.active { color: var(--text); border-color: var(--muted); background: var(--surface); }
+.chip.critical.active { color: var(--critical); border-color: var(--critical); }
+.chip.warning.active { color: var(--warning); border-color: var(--warning); }
+.chip.info.active { color: var(--info); border-color: var(--info); }
+.modal-body { padding: 4px 20px 16px; overflow-y: auto; }
+.modal-body .section-title { margin-top: 16px; }
+.modal-foot {
+  display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+  padding: 10px 20px; border-top: 1px solid var(--border);
+}
+.btn-delete {
+  background: none; border: none; color: var(--muted);
+  font-size: 12px; cursor: pointer; padding: 4px 8px;
+}
+.btn-delete:hover { color: var(--critical); }
+.btn-danger {
+  background: var(--critical); color: #0b0d11; border: none;
+  border-radius: 6px; padding: 5px 12px; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; margin: 0 8px;
+}
+.delete-confirm { color: var(--muted); font-size: 12.5px; display: flex; align-items: center; }
+
+/* ---- workspace settings ---- */
+
+.icp-block { margin-top: 16px; display: flex; flex-direction: column; gap: 5px; }
+.icp-block small { color: var(--muted); font-size: 12px; }
+.icp-block textarea {
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 12px; font-size: 13px; font-family: inherit; resize: vertical;
+}
+.run-now { margin-top: 18px; }
+.run-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.run-result { margin-top: 10px; word-break: break-all; font-size: 12px; }

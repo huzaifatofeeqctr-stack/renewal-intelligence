@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireCronAuth, logRun } from '@/lib/auth';
+import { requireCronOrAdmin, logRun } from '@/lib/auth';
 import { coll } from '@/lib/db';
 import { tavilySearch } from '@/lib/tavily';
 import { summarize } from '@/lib/anthropic';
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 }
 
 async function run(req: NextRequest) {
-  const denied = requireCronAuth(req);
+  const denied = await requireCronOrAdmin(req);
   if (denied) return denied;
 
   const accounts = await coll('accounts');

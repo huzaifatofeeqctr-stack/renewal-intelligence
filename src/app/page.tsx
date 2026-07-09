@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { coll } from '@/lib/db';
 import { requireUser } from '@/lib/require-user';
 import type { AccountDoc, SignalDoc } from '@/lib/types';
 import { SearchBar, Pagination, parsePage, escapeRegex } from './ListControls';
+import AccountsGrid from './AccountsGrid';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,12 +54,6 @@ async function loadAccounts(q: string): Promise<AccountCard[]> {
     .sort((a, b) => a.computedScore - b.computedScore || b.critical - a.critical || a.name.localeCompare(b.name));
 }
 
-function scoreClass(score: number): string {
-  if (score >= 80) return 'good';
-  if (score >= 50) return 'mid';
-  return 'bad';
-}
-
 export default async function AccountsPage({
   searchParams,
 }: {
@@ -93,24 +87,20 @@ export default async function AccountsPage({
         </div>
       ) : (
         <>
-          <div className="grid">
-            {visible.map((a) => (
-              <Link href={`/accounts/${a.sfdc_id}`} className="card card-link" key={a.sfdc_id}>
-                <span className={`score ${scoreClass(a.computedScore)}`}>{a.computedScore}</span>
-                <h3>{a.name}</h3>
-                <div className="meta">
-                  {a.industry ?? 'No industry'} · {a.owner_email ?? 'unassigned'}
-                  {a.renewal_date ? ` · renews ${a.renewal_date}` : ''}
-                </div>
-                <div className="badges">
-                  {a.critical > 0 && <span className="badge critical">{a.critical} critical</span>}
-                  {a.warning > 0 && <span className="badge warning">{a.warning} warning</span>}
-                  {a.info > 0 && <span className="badge info">{a.info} info</span>}
-                  {a.critical + a.warning + a.info === 0 && <span className="badge ok">healthy</span>}
-                </div>
-              </Link>
-            ))}
-          </div>
+          <AccountsGrid
+            accounts={visible.map((a) => ({
+              sfdc_id: a.sfdc_id,
+              name: a.name,
+              industry: a.industry,
+              owner_email: a.owner_email,
+              renewal_date: a.renewal_date,
+              website: a.website,
+              critical: a.critical,
+              warning: a.warning,
+              info: a.info,
+              computedScore: a.computedScore,
+            }))}
+          />
           <Pagination basePath="/" q={q} page={current} totalPages={totalPages} totalItems={all.length} />
         </>
       )}

@@ -14,6 +14,19 @@ export function requireCronAuth(req: NextRequest): NextResponse | null {
   return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 }
 
+// Allows the Railway cron runner (secret) OR a signed-in admin (so the
+// Settings page "Run now" buttons work).
+export async function requireCronOrAdmin(req: NextRequest): Promise<NextResponse | null> {
+  const secret = process.env.CRON_SECRET;
+  const header = req.headers.get('authorization');
+  const query = req.nextUrl.searchParams.get('secret');
+  if (secret && (header === `Bearer ${secret}` || query === secret)) return null;
+  const { getSessionUser } = await import('./authn');
+  const user = await getSessionUser();
+  if (user?.role === 'admin') return null;
+  return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+}
+
 export async function logRun(entry: {
   workflow_name: string;
   items_in: number;

@@ -1,5 +1,7 @@
 import { requireUser } from '@/lib/require-user';
+import { getWorkspaceSettings } from '@/lib/workspace';
 import SettingsForm from './SettingsForm';
+import WorkspacePanel from './WorkspacePanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +16,14 @@ const INTEGRATIONS: { name: string; envVar: string }[] = [
 
 export default async function SettingsPage() {
   const user = await requireUser();
+  const workspace = user.role === 'admin' ? await getWorkspaceSettings() : null;
 
   return (
     <main>
       <h1>Settings</h1>
       <p className="subtitle">Your preferences and the workspace integration status.</p>
       <div className="stack">
+        {workspace && <WorkspacePanel initial={workspace} />}
         <SettingsForm initial={user.settings} />
         <div className="panel">
           <h2>Integrations</h2>

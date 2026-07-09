@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireCronAuth, logRun } from '@/lib/auth';
+import { requireCronOrAdmin, logRun } from '@/lib/auth';
+import { getWorkspaceSettings } from '@/lib/workspace';
 import { coll } from '@/lib/db';
 import { searchPeopleByDomain, matchPerson, icpTitles, normalizeDomain } from '@/lib/apollo';
 import { emitSignal } from '@/lib/signals';
@@ -25,17 +26,24 @@ export async function GET(req: NextRequest) {
 }
 
 async function run(req: NextRequest) {
-  const denied = requireCronAuth(req);
+  const denied = await requireCronOrAdmin(req);
   if (denied) return denied;
 
+  const settings = await getWorkspaceSettings();
+  if (!settings.stakeholder_discovery_enabled && req.nextUrl.searchParams.get('force') !== '1') {
+    return NextResponse.json({ skipped: true, reason: 'stakeholder discovery is paused in workspace settings' });
+  }
+  const revealBudget = settings.stakeholder_reveal_budget;
   const accounts = await coll<AccountDoc>('accounts');
   const contacts = await coll<ContactDoc>('contacts');
-  const titles = icpTitles();
+  const titles = settings.icp_titles
+    ? settings.icp_titles.split(',').map((t) => t.trim()).filter(Boolean)
+    : icpTitles();
 
   const batch = await accounts
     .find({ website: { $nin: [null, ''] } })
     .sort({ stakeholders_checked_at: 1 })
-    .limit(ACCOUNTS_PER_RUN)
+    .limit(settings.stakeholder_accounts_per_run)
     .toArray();
 
   const now = new Date().toISOString();
@@ -57,7 +65,7 @@ async function run(req: NextRequest) {
       );
 
       for (const hit of hits) {
-        if (reveals >= REVEAL_BUDGET) break;
+        if (reveals >= revealBudget) break;
         // Cheap pre-filter before spending a credit: same first name at the
         // account probably means we already have them.
         if (existingFirstNames.has(hit.first_name.toLowerCase().trim())) continue;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireCronAuth, logRun } from '@/lib/auth';
+import { requireCronOrAdmin, logRun } from '@/lib/auth';
+import { getWorkspaceSettings } from '@/lib/workspace';
 import { coll } from '@/lib/db';
 import { soql } from '@/lib/salesforce';
 import { importAccounts } from '@/lib/sf-import';
@@ -21,8 +22,13 @@ export async function GET(req: NextRequest) {
 }
 
 async function run(req: NextRequest) {
-  const denied = requireCronAuth(req);
+  const denied = await requireCronOrAdmin(req);
   if (denied) return denied;
+
+  const settings = await getWorkspaceSettings();
+  if (!settings.sf_sync_enabled && req.nextUrl.searchParams.get('force') !== '1') {
+    return NextResponse.json({ skipped: true, reason: 'Salesforce sync is paused in workspace settings' });
+  }
 
   const fullMode = req.nextUrl.searchParams.get('mode') === 'full';
   let ids: string[];

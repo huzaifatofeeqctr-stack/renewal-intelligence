@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireCronAuth, logRun } from '@/lib/auth';
+import { requireCronOrAdmin, logRun } from '@/lib/auth';
+import { getWorkspaceSettings } from '@/lib/workspace';
 import { coll } from '@/lib/db';
 import { matchPerson, normalizeDomain } from '@/lib/apollo';
 import { updateContact } from '@/lib/salesforce';
@@ -30,11 +31,13 @@ export async function POST(req: NextRequest) {
 }
 
 async function run(req: NextRequest) {
-  const denied = requireCronAuth(req);
+  const denied = await requireCronOrAdmin(req);
   if (denied) return denied;
 
+  const settings = await getWorkspaceSettings();
+  const batchSize = Math.min(MATCH_BUDGET, settings.enrich_batch_size);
   const contacts = await coll<ContactDoc>('contacts');
-  const cooldown = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const cooldown = new Date(Date.now() - settings.enrich_cooldown_days * 24 * 60 * 60 * 1000).toISOString();
 
   const candidates = await contacts
     .find({
@@ -47,7 +50,7 @@ async function run(req: NextRequest) {
       ],
     })
     .sort({ account_renewal_date: 1 })
-    .limit(MATCH_BUDGET)
+    .limit(batchSize)
     .toArray();
 
   const now = new Date().toISOString();
@@ -177,7 +180,7 @@ async function run(req: NextRequest) {
     items_skipped_junk: 0,
     items_processed: enrichedCount,
     errors,
-    notes: `budget=${MATCH_BUDGET} enriched=${enrichedCount} noData=${noData} signals=${signals}`,
+    notes: `budget=${batchSize} enriched=${enrichedCount} noData=${noData} signals=${signals}`,
   });
 
   return NextResponse.json({ candidates: candidates.length, enriched: enrichedCount, noData, signals, errors, firstError });
