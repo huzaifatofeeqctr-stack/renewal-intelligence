@@ -42,9 +42,10 @@ type Job = (typeof JOBS)[number];
 
 interface RunState {
   job: Job;
-  phase: 'running' | 'done' | 'error';
+  phase: 'preview' | 'confirm' | 'running' | 'done' | 'error';
   rows: [string, string][];
   message: string | null;
+  preview?: { candidates: number; accounts: number; per_request_cap: number };
 }
 
 const KEY_LABELS: Record<string, string> = {
@@ -103,10 +104,34 @@ export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: strin
   const router = useRouter();
   const [run, setRun] = useState<RunState | null>(null);
 
-  async function start(job: Job) {
+  // The global enrichment button confirms first: total accounts + expected
+  // Apollo credit spend, then runs the FULL backlog (ignores the batch budget;
+  // overflow drains via background jobs).
+  async function confirmEnrich(job: Job) {
+    setRun({ job, phase: 'preview', rows: [], message: null });
+    try {
+      const res = await fetch('/api/enrich/apollo', { method: 'GET' });
+      const data = (await res.json()) as { candidates?: number; accounts?: number; per_request_cap?: number; error?: string };
+      if (!res.ok || typeof data.candidates !== 'number') {
+        setRun({ job, phase: 'error', rows: [], message: data.error ?? 'could not load the enrichment preview' });
+        return;
+      }
+      setRun({
+        job,
+        phase: 'confirm',
+        rows: [],
+        message: null,
+        preview: { candidates: data.candidates, accounts: data.accounts ?? 0, per_request_cap: data.per_request_cap ?? 30 },
+      });
+    } catch (e) {
+      setRun({ job, phase: 'error', rows: [], message: e instanceof Error ? e.message : 'request failed' });
+    }
+  }
+
+  async function start(job: Job, path = job.path) {
     setRun({ job, phase: 'running', rows: [], message: null });
     try {
-      const res = await fetch(job.path, { method: job.method });
+      const res = await fetch(path, { method: job.method });
       const text = await res.text();
       let data: Record<string, unknown> | null = null;
       try {
@@ -131,7 +156,7 @@ export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: strin
   }
 
   const dismiss = () => {
-    if (run?.phase !== 'running') setRun(null);
+    if (run?.phase !== 'running' && run?.phase !== 'preview') setRun(null);
   };
 
   return (
@@ -149,8 +174,8 @@ export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: strin
               className={`run-icon${run?.job.path === j.path && run.phase === 'running' ? ' running' : ''}${done ? ' done' : ''}`}
               data-tip={tip}
               aria-label={j.label}
-              disabled={run?.phase === 'running'}
-              onClick={() => start(j)}
+              disabled={run !== null && run.phase !== 'done' && run.phase !== 'error'}
+              onClick={() => (isEnrich ? confirmEnrich(j) : start(j))}
             >
               {run?.job.path === j.path && run.phase === 'running' ? '⏳' : j.icon}
             </button>
@@ -159,9 +184,50 @@ export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: strin
       </div>
 
       {run && (
-        <div className={`run-overlay${run.phase === 'running' ? ' busy' : ''}`} onClick={dismiss}>
+        <div className={`run-overlay${run.phase === 'running' || run.phase === 'preview' ? ' busy' : ''}`} onClick={dismiss}>
           <div className="run-card" onClick={(e) => e.stopPropagation()}>
-            {run.phase === 'running' ? (
+            {run.phase === 'preview' ? (
+              <>
+                <PulseLogo />
+                <h3>Checking what&apos;s enrichable…</h3>
+                <div className="run-dots" aria-hidden="true">
+                  <span /><span /><span />
+                </div>
+              </>
+            ) : run.phase === 'confirm' && run.preview ? (
+              <>
+                <div className="run-result-icon confirm">⚡</div>
+                <h3>Enrich everything?</h3>
+                <div className="detail-rows run-rows">
+                  <div className="detail-row">
+                    <span className="detail-label">Accounts affected</span>
+                    <span className="detail-value">{run.preview.accounts}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Contacts to enrich</span>
+                    <span className="detail-value">{run.preview.candidates}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Expected Apollo credits</span>
+                    <span className="detail-value">~{run.preview.candidates} (1 per contact)</span>
+                  </div>
+                </div>
+                <p className="run-hint">
+                  Runs the full backlog regardless of the workspace batch limit — the first{' '}
+                  {Math.min(run.preview.candidates, run.preview.per_request_cap)} now, the rest via background jobs.
+                </p>
+                <div className="run-confirm-actions">
+                  <button className="btn-clear" onClick={() => setRun(null)}>Cancel</button>
+                  <button
+                    className="btn-primary"
+                    disabled={run.preview.candidates === 0}
+                    onClick={() => start(run.job, '/api/enrich/apollo?all=1')}
+                  >
+                    {run.preview.candidates === 0 ? 'Nothing to enrich' : `Enrich all ${run.preview.candidates}`}
+                  </button>
+                </div>
+              </>
+            ) : run.phase === 'running' ? (
               <>
                 <PulseLogo />
                 <h3>{run.job.verb}</h3>

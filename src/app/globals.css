@@ -725,3 +725,7 @@ tr:hover td { background: var(--surface); }
 }
 .run-result-icon.done { background: rgba(76, 183, 130, 0.15); color: var(--ok); border: 1px solid var(--ok); }
 .run-result-icon.error { background: rgba(240, 84, 108, 0.15); color: var(--critical); border: 1px solid var(--critical); }
+
+/* ── enrichment confirm popup ──────────────────────────────────────────── */
+.run-result-icon.confirm { background: rgba(91, 157, 217, 0.15); color: var(--info); border: 1px solid var(--info); }
+.run-confirm-actions { display: flex; gap: 10px; margin-top: 6px; }

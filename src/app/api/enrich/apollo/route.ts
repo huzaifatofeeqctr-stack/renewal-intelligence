@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronOrAdmin } from '@/lib/auth';
 import { notifyOps } from '@/lib/slack';
-import { runEnrichBatch } from '@/lib/enrich';
+import { runEnrichBatch, previewEnrich } from '@/lib/enrich';
 
 export const dynamic = 'force-dynamic';
+
+// GET: pre-flight preview for the confirmation popup — how many contacts are
+// enrichable (≈ Apollo credits) across how many accounts. Spends nothing.
+export async function GET(req: NextRequest) {
+  try {
+    const denied = await requireCronOrAdmin(req);
+    if (denied) return denied;
+    const preview = await previewEnrich(req.nextUrl.searchParams.get('account'));
+    return NextResponse.json(preview);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
 // POST (cron auth): enriches incomplete, non-junk contacts via Apollo
 // people/match in renewal-priority order. Fill-only-empty into Mongo
@@ -17,6 +31,9 @@ export async function POST(req: NextRequest) {
       mode: 'enrich',
       accountScope: req.nextUrl.searchParams.get('account'),
       createdBy: 'manual',
+      // ?all=1 (the global run button): ignore the workspace batch budget and
+      // chain background jobs until the whole backlog is done.
+      ignoreLimits: req.nextUrl.searchParams.get('all') === '1',
     });
     return NextResponse.json(result);
   } catch (e) {

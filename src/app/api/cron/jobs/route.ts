@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
         mode: job.type === 'champion_watch' ? 'watch' : 'enrich',
         accountScope: job.params.account_sfdc_id,
         createdBy: `job:${job.created_by}`,
+        ignoreLimits: job.params.ignore_limits === true,
       });
       await finishJob(job._id, {
         result: `processed=${result.enriched} signals=${result.signals} errors=${result.errors}`,

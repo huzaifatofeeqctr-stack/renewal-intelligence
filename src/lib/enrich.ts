@@ -12,6 +12,38 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// The mongo filter selecting enrichable contacts (mode 'enrich').
+function enrichFilter(cooldownIso: string, accountScope?: string | null): Record<string, unknown> {
+  return {
+    is_junk: false,
+    first_name: { $ne: null },
+    last_name: { $ne: null },
+    ...(accountScope ? { account_sfdc_id: accountScope } : {}),
+    $and: [
+      { $or: [{ email: null }, { title: null }, { linkedin_url: null }] },
+      { $or: [{ enriched_at: null }, { enriched_at: { $lt: cooldownIso } }] },
+    ],
+  };
+}
+
+// Pre-flight numbers for the confirmation popup: how many contacts would be
+// matched (≈ Apollo credits, 1 per match call) across how many accounts.
+export async function previewEnrich(accountScope?: string | null): Promise<{
+  candidates: number;
+  accounts: number;
+  per_request_cap: number;
+}> {
+  const settings = await getWorkspaceSettings();
+  const contacts = await coll<ContactDoc>('contacts');
+  const cooldown = new Date(Date.now() - settings.enrich_cooldown_days * 24 * 60 * 60 * 1000).toISOString();
+  const filter = enrichFilter(cooldown, accountScope);
+  const [candidates, accountIds] = await Promise.all([
+    contacts.countDocuments(filter),
+    contacts.distinct('account_sfdc_id', filter),
+  ]);
+  return { candidates, accounts: accountIds.filter(Boolean).length, per_request_cap: MATCH_BUDGET };
+}
+
 export interface EnrichResult {
   candidates: number;
   enriched: number;
@@ -33,36 +65,36 @@ export async function runEnrichBatch(opts: {
   mode: 'enrich' | 'watch';
   accountScope?: string | null;
   createdBy?: string;
+  // "Do it all": ignore the workspace batch-size budget. Each request still
+  // caps at MATCH_BUDGET (proxy timeout), but a full batch queues a follow-up
+  // job, so the whole backlog drains via the hourly jobs cron.
+  ignoreLimits?: boolean;
 }): Promise<EnrichResult> {
   const settings = await getWorkspaceSettings();
   const contacts = await coll<ContactDoc>('contacts');
   const isWatch = opts.mode === 'watch';
-  const batchSize = Math.min(MATCH_BUDGET, isWatch ? settings.champion_watch_budget : settings.enrich_batch_size);
+  const batchSize = opts.ignoreLimits
+    ? MATCH_BUDGET
+    : Math.min(MATCH_BUDGET, isWatch ? settings.champion_watch_budget : settings.enrich_batch_size);
   const cooldown = new Date(Date.now() - settings.enrich_cooldown_days * 24 * 60 * 60 * 1000).toISOString();
   const watchCutoff = new Date(
     Date.now() - settings.champion_watch_cadence_days * 24 * 60 * 60 * 1000
   ).toISOString();
 
   const candidates = await contacts
-    .find({
-      is_junk: false,
-      first_name: { $ne: null },
-      last_name: { $ne: null },
-      ...(opts.accountScope ? { account_sfdc_id: opts.accountScope } : {}),
-      ...(isWatch
+    .find(
+      isWatch
         ? {
             // watch: contacts we've already enriched, due for a re-check
+            is_junk: false,
+            first_name: { $ne: null },
+            last_name: { $ne: null },
+            ...(opts.accountScope ? { account_sfdc_id: opts.accountScope } : {}),
             enriched_at: { $ne: null },
             $or: [{ watch_checked_at: null }, { watch_checked_at: { $lt: watchCutoff } }],
           }
-        : {
-            // enrich: incomplete contacts outside the cooldown window
-            $and: [
-              { $or: [{ email: null }, { title: null }, { linkedin_url: null }] },
-              { $or: [{ enriched_at: null }, { enriched_at: { $lt: cooldown } }] },
-            ],
-          }),
-    })
+        : enrichFilter(cooldown, opts.accountScope)
+    )
     .sort({ account_renewal_date: 1 })
     .limit(batchSize)
     .toArray();
@@ -234,7 +266,7 @@ export async function runEnrichBatch(opts: {
   if (!outOfCredits && candidates.length === batchSize && batchSize > 0) {
     queuedFollowUp = await enqueueJob(
       isWatch ? 'champion_watch' : 'enrich',
-      { account_sfdc_id: opts.accountScope ?? null },
+      { account_sfdc_id: opts.accountScope ?? null, ignore_limits: opts.ignoreLimits ?? false },
       opts.createdBy ?? 'system'
     );
   }

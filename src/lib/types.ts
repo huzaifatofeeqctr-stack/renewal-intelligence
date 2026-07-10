@@ -75,7 +75,7 @@ export interface SignalDoc {
 export interface JobDoc {
   type: 'enrich' | 'champion_watch';
   status: 'pending' | 'running' | 'done' | 'failed';
-  params: { account_sfdc_id?: string | null };
+  params: { account_sfdc_id?: string | null; ignore_limits?: boolean };
   created_at: string;
   created_by: string;
   started_at: string | null;
