@@ -26,7 +26,11 @@ export async function enqueueJob(
   await jobs.insertOne({
     type,
     status: 'pending',
-    params: { account_sfdc_id: params.account_sfdc_id ?? null, ignore_limits: params.ignore_limits ?? false },
+    params: {
+      account_sfdc_id: params.account_sfdc_id ?? null,
+      ignore_limits: params.ignore_limits ?? false,
+      refresh_all: params.refresh_all ?? false,
+    },
     created_at: new Date().toISOString(),
     created_by: createdBy,
     started_at: null,

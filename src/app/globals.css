@@ -744,3 +744,16 @@ tr:hover td { background: var(--surface); }
 }
 .run-confirm-actions .btn-clear:hover { border-color: var(--muted); color: var(--text); }
 .run-confirm-actions .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* enrichment mode options in the confirm popup */
+.enrich-option {
+  width: 100%; text-align: left; background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+  color: inherit; font: inherit; cursor: pointer;
+  display: flex; flex-direction: column; gap: 5px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.enrich-option:hover:not(:disabled) { border-color: var(--info); background: rgba(91, 157, 217, 0.08); }
+.enrich-option:disabled { opacity: 0.5; cursor: not-allowed; }
+.enrich-option-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.enrich-option small { color: var(--muted); font-size: 12px; line-height: 1.45; }

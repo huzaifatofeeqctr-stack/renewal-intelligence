@@ -12,7 +12,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// The mongo filter selecting enrichable contacts (mode 'enrich').
+// "Re-enrich everything" mode: any real, named contact — no missing-field or
+// cooldown conditions. Contacts refreshed in the last 24h are excluded so a
+// full sweep terminates instead of looping over the same people forever.
+function refreshAllFilter(accountScope?: string | null): Record<string, unknown> {
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  return {
+    is_junk: false,
+    first_name: { $ne: null },
+    last_name: { $ne: null },
+    ...(accountScope ? { account_sfdc_id: accountScope } : {}),
+    $or: [{ enriched_at: null }, { enriched_at: { $lt: dayAgo } }],
+  };
+}
+
+// The default enrich selection: matchable AND missing something AND outside
+// the re-enrichment cooldown.
 function enrichFilter(cooldownIso: string, accountScope?: string | null): Record<string, unknown> {
   return {
     is_junk: false,
@@ -26,22 +41,29 @@ function enrichFilter(cooldownIso: string, accountScope?: string | null): Record
   };
 }
 
-// Pre-flight numbers for the confirmation popup: how many contacts would be
-// matched (≈ Apollo credits, 1 per match call) across how many accounts.
+// Pre-flight numbers for the confirmation popup: how many contacts each mode
+// would match (≈ Apollo credits, 1 per match call) across how many accounts.
 export async function previewEnrich(accountScope?: string | null): Promise<{
-  candidates: number;
-  accounts: number;
+  incomplete: { candidates: number; accounts: number };
+  everything: { candidates: number; accounts: number };
   per_request_cap: number;
 }> {
   const settings = await getWorkspaceSettings();
   const contacts = await coll<ContactDoc>('contacts');
   const cooldown = new Date(Date.now() - settings.enrich_cooldown_days * 24 * 60 * 60 * 1000).toISOString();
-  const filter = enrichFilter(cooldown, accountScope);
-  const [candidates, accountIds] = await Promise.all([
-    contacts.countDocuments(filter),
-    contacts.distinct('account_sfdc_id', filter),
+  const incompleteFilter = enrichFilter(cooldown, accountScope);
+  const allFilter = refreshAllFilter(accountScope);
+  const [incompleteN, incompleteAccounts, allN, allAccounts] = await Promise.all([
+    contacts.countDocuments(incompleteFilter),
+    contacts.distinct('account_sfdc_id', incompleteFilter),
+    contacts.countDocuments(allFilter),
+    contacts.distinct('account_sfdc_id', allFilter),
   ]);
-  return { candidates, accounts: accountIds.filter(Boolean).length, per_request_cap: MATCH_BUDGET };
+  return {
+    incomplete: { candidates: incompleteN, accounts: incompleteAccounts.filter(Boolean).length },
+    everything: { candidates: allN, accounts: allAccounts.filter(Boolean).length },
+    per_request_cap: MATCH_BUDGET,
+  };
 }
 
 export interface EnrichResult {
@@ -69,6 +91,9 @@ export async function runEnrichBatch(opts: {
   // caps at MATCH_BUDGET (proxy timeout), but a full batch queues a follow-up
   // job, so the whole backlog drains via the hourly jobs cron.
   ignoreLimits?: boolean;
+  // Re-enrich EVERY named contact (no missing-field or cooldown conditions);
+  // only a 24h freshness window keeps the sweep from looping.
+  refreshAll?: boolean;
 }): Promise<EnrichResult> {
   const settings = await getWorkspaceSettings();
   const contacts = await coll<ContactDoc>('contacts');
@@ -93,9 +118,12 @@ export async function runEnrichBatch(opts: {
             enriched_at: { $ne: null },
             $or: [{ watch_checked_at: null }, { watch_checked_at: { $lt: watchCutoff } }],
           }
-        : enrichFilter(cooldown, opts.accountScope)
+        : opts.refreshAll
+          ? refreshAllFilter(opts.accountScope)
+          : enrichFilter(cooldown, opts.accountScope)
     )
-    .sort({ account_renewal_date: 1 })
+    // refreshAll sweeps oldest-enriched first so follow-up batches make progress
+    .sort(opts.refreshAll ? { enriched_at: 1 } : { account_renewal_date: 1 })
     .limit(batchSize)
     .toArray();
 
@@ -266,7 +294,7 @@ export async function runEnrichBatch(opts: {
   if (!outOfCredits && candidates.length === batchSize && batchSize > 0) {
     queuedFollowUp = await enqueueJob(
       isWatch ? 'champion_watch' : 'enrich',
-      { account_sfdc_id: opts.accountScope ?? null, ignore_limits: opts.ignoreLimits ?? false },
+      { account_sfdc_id: opts.accountScope ?? null, ignore_limits: opts.ignoreLimits ?? false, refresh_all: opts.refreshAll ?? false },
       opts.createdBy ?? 'system'
     );
   }

@@ -45,7 +45,11 @@ interface RunState {
   phase: 'preview' | 'confirm' | 'running' | 'done' | 'error';
   rows: [string, string][];
   message: string | null;
-  preview?: { candidates: number; accounts: number; per_request_cap: number };
+  preview?: {
+    incomplete: { candidates: number; accounts: number };
+    everything: { candidates: number; accounts: number };
+    per_request_cap: number;
+  };
 }
 
 const KEY_LABELS: Record<string, string> = {
@@ -117,8 +121,13 @@ export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: strin
     setRun({ job, phase: 'preview', rows: [], message: null });
     try {
       const res = await fetch('/api/enrich/apollo', { method: 'GET' });
-      const data = (await res.json()) as { candidates?: number; accounts?: number; per_request_cap?: number; error?: string };
-      if (!res.ok || typeof data.candidates !== 'number') {
+      const data = (await res.json()) as {
+        incomplete?: { candidates: number; accounts: number };
+        everything?: { candidates: number; accounts: number };
+        per_request_cap?: number;
+        error?: string;
+      };
+      if (!res.ok || !data.incomplete || !data.everything) {
         setRun({ job, phase: 'error', rows: [], message: data.error ?? 'could not load the enrichment preview' });
         return;
       }
@@ -127,7 +136,11 @@ export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: strin
         phase: 'confirm',
         rows: [],
         message: null,
-        preview: { candidates: data.candidates, accounts: data.accounts ?? 0, per_request_cap: data.per_request_cap ?? 30 },
+        preview: {
+          incomplete: data.incomplete,
+          everything: data.everything,
+          per_request_cap: data.per_request_cap ?? 30,
+        },
       });
     } catch (e) {
       setRun({ job, phase: 'error', rows: [], message: e instanceof Error ? e.message : 'request failed' });
@@ -211,34 +224,46 @@ export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: strin
             ) : run.phase === 'confirm' && run.preview ? (
               <>
                 <div className="run-result-icon confirm">⚡</div>
-                <h3>Enrich everything?</h3>
-                <div className="detail-rows run-rows">
-                  <div className="detail-row">
-                    <span className="detail-label">Accounts affected</span>
-                    <span className="detail-value">{run.preview.accounts}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Contacts to enrich</span>
-                    <span className="detail-value">{run.preview.candidates}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Expected Apollo credits</span>
-                    <span className="detail-value">~{run.preview.candidates} (1 per contact)</span>
-                  </div>
-                </div>
+                <h3>Run enrichment</h3>
                 <p className="run-hint">
-                  Runs the full backlog regardless of the workspace batch limit — the first{' '}
-                  {Math.min(run.preview.candidates, run.preview.per_request_cap)} now, the rest via background jobs.
+                  Each contact costs ~1 Apollo credit. Both options run the full backlog — the first{' '}
+                  {run.preview.per_request_cap} now, the rest via background jobs.
                 </p>
+
+                <button
+                  className="enrich-option"
+                  disabled={run.preview.incomplete.candidates === 0}
+                  onClick={() => start(run.job, '/api/enrich/apollo?all=1')}
+                >
+                  <span className="enrich-option-head">
+                    <strong>Enrich incomplete contacts</strong>
+                    <span className="badge info">~{run.preview.incomplete.candidates} credits</span>
+                  </span>
+                  <small>
+                    {run.preview.incomplete.candidates} contact{run.preview.incomplete.candidates === 1 ? '' : 's'} missing an
+                    email, title, or LinkedIn across {run.preview.incomplete.accounts} account
+                    {run.preview.incomplete.accounts === 1 ? '' : 's'}.
+                  </small>
+                </button>
+
+                <button
+                  className="enrich-option"
+                  disabled={run.preview.everything.candidates === 0}
+                  onClick={() => start(run.job, '/api/enrich/apollo?all=1&scope=everything')}
+                >
+                  <span className="enrich-option-head">
+                    <strong>Re-enrich everything</strong>
+                    <span className="badge warning">~{run.preview.everything.candidates} credits</span>
+                  </span>
+                  <small>
+                    Every named contact — {run.preview.everything.candidates} across {run.preview.everything.accounts} account
+                    {run.preview.everything.accounts === 1 ? '' : 's'} — including already-complete ones, to catch job
+                    and title changes.
+                  </small>
+                </button>
+
                 <div className="run-confirm-actions">
                   <button className="btn-clear" onClick={() => setRun(null)}>Cancel</button>
-                  <button
-                    className="btn-primary"
-                    disabled={run.preview.candidates === 0}
-                    onClick={() => start(run.job, '/api/enrich/apollo?all=1')}
-                  >
-                    {run.preview.candidates === 0 ? 'Nothing to enrich' : `Enrich all ${run.preview.candidates}`}
-                  </button>
                 </div>
               </>
             ) : run.phase === 'running' ? (

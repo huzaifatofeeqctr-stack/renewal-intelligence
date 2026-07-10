@@ -34,6 +34,9 @@ export async function POST(req: NextRequest) {
       // ?all=1 (the global run button): ignore the workspace batch budget and
       // chain background jobs until the whole backlog is done.
       ignoreLimits: req.nextUrl.searchParams.get('all') === '1',
+      // ?scope=everything: re-enrich every named contact, not just incomplete
+      // ones outside the cooldown.
+      refreshAll: req.nextUrl.searchParams.get('scope') === 'everything',
     });
     return NextResponse.json(result);
   } catch (e) {

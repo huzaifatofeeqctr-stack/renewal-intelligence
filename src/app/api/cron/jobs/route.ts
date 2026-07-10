@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
         accountScope: job.params.account_sfdc_id,
         createdBy: `job:${job.created_by}`,
         ignoreLimits: job.params.ignore_limits === true,
+        refreshAll: job.params.refresh_all === true,
       });
       await finishJob(job._id, {
         result: `processed=${result.enriched} signals=${result.signals} errors=${result.errors}`,
