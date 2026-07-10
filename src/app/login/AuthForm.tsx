@@ -21,6 +21,11 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
       body: JSON.stringify(mode === 'signup' ? { email, name, password } : { email, password }),
     });
     if (res.ok) {
+      try {
+        sessionStorage.removeItem('ri-splash-shown'); // replay the logo splash on this sign-in
+      } catch {
+        // storage unavailable — splash just won't replay
+      }
       router.push('/');
       router.refresh();
       return;

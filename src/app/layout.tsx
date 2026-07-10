@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/authn';
+import SplashScreen from './SplashScreen';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         {user ? (
           <div className="app">
+            <SplashScreen />
             <aside className="sidebar">
               <Link href="/" className="brand">
                 {/* app/icon.svg is served at /icon.svg by Next */}

@@ -773,3 +773,32 @@ tr:hover td { background: var(--surface); }
 .clear-chip { color: var(--critical); border-color: var(--critical); margin-left: auto; }
 .th-sort { color: inherit; text-decoration: none; white-space: nowrap; }
 .th-sort:hover { color: var(--info); }
+
+/* ── post-login splash animation ───────────────────────────────────────── */
+.splash {
+  position: fixed; inset: 0; z-index: 200; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px; transition: opacity 0.5s ease;
+}
+.splash.leaving { opacity: 0; pointer-events: none; }
+.splash-logo { width: 96px; height: 96px; border-radius: 22px; animation: splash-pop 0.5s ease-out; }
+@keyframes splash-pop { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.splash-arc {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: arc-draw 0.55s ease-out forwards;
+}
+.splash-arc.s2 { animation-delay: 0.18s; opacity: 0.65; }
+.splash-arc.s3 { animation-delay: 0.36s; opacity: 0.35; }
+@keyframes arc-draw { to { stroke-dashoffset: 0; } }
+.splash-dot { animation: splash-pop 0.4s ease-out; }
+.splash-signal { opacity: 0; animation: signal-pop 0.35s ease-out 0.75s forwards; }
+@keyframes signal-pop { from { opacity: 0; transform: scale(0.3); transform-origin: 41px 23px; } to { opacity: 1; transform: scale(1); } }
+.splash-word {
+  font-size: 22px; font-weight: 800; letter-spacing: 0.01em;
+  opacity: 0; animation: word-rise 0.5s ease-out 0.55s forwards;
+}
+.splash-word span { color: var(--info); }
+@keyframes word-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .splash { display: none; }
+}
