@@ -729,3 +729,15 @@ tr:hover td { background: var(--surface); }
 /* ── enrichment confirm popup ──────────────────────────────────────────── */
 .run-result-icon.confirm { background: rgba(91, 157, 217, 0.15); color: var(--info); border: 1px solid var(--info); }
 .run-confirm-actions { display: flex; gap: 10px; margin-top: 6px; }
+
+/* confirm popup buttons: equal-weight, properly bordered */
+.run-confirm-actions { width: 100%; margin-top: 8px; }
+.run-confirm-actions button {
+  flex: 1; padding: 10px 14px; border-radius: 10px; font-size: 14px;
+  font-weight: 600; cursor: pointer; line-height: 1;
+}
+.run-confirm-actions .btn-clear {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+}
+.run-confirm-actions .btn-clear:hover { border-color: var(--muted); color: var(--text); }
+.run-confirm-actions .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }

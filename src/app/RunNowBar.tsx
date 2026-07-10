@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const JOBS = [
   {
@@ -88,14 +88,20 @@ function timeAgo(iso: string): string {
 function PulseLogo() {
   return (
     <svg viewBox="0 0 64 64" className="run-logo" aria-hidden="true">
-      <rect width="64" height="64" rx="14" fill="#171a21" />
-      <g fill="none" stroke="#5b9dd9" strokeWidth="4" strokeLinecap="round">
-        <path className="pulse-arc a1" d="M18 44a14 14 0 0 1 14-14" />
-        <path className="pulse-arc a2" d="M10 44a22 22 0 0 1 22-22" />
-        <path className="pulse-arc a3" d="M2.5 44a29.5 29.5 0 0 1 29.5-29.5" transform="translate(4 0) scale(0.93)" />
+      <defs>
+        <linearGradient id="runLogoBg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#1c2230" />
+          <stop offset="1" stopColor="#12151c" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="15" fill="url(#runLogoBg)" />
+      <g fill="none" stroke="#5b9dd9" strokeWidth="5" strokeLinecap="round">
+        <path className="pulse-arc a1" d="M20 32 A12 12 0 0 1 32 44" />
+        <path className="pulse-arc a2" d="M20 23 A21 21 0 0 1 41 44" />
+        <path className="pulse-arc a3" d="M20 14 A30 30 0 0 1 50 44" />
       </g>
-      <circle cx="20" cy="44" r="5" fill="#f0546c" />
-      <circle cx="44" cy="24" r="5" fill="#4cb782" />
+      <circle cx="20" cy="44" r="6" fill="#e8ecf3" />
+      <circle cx="41.2" cy="22.8" r="4.5" fill="#4cb782" />
     </svg>
   );
 }
@@ -158,6 +164,14 @@ export default function RunNowBar({ lastEnrichRunAt }: { lastEnrichRunAt?: strin
   const dismiss = () => {
     if (run?.phase !== 'running' && run?.phase !== 'preview') setRun(null);
   };
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && run && run.phase !== 'running' && run.phase !== 'preview') setRun(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [run]);
 
   return (
     <div className="run-bar">
