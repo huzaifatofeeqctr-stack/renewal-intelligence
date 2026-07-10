@@ -23,7 +23,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="app">
             <aside className="sidebar">
               <Link href="/" className="brand">
-                Renewal<br />Intelligence
+                {/* app/icon.svg is served at /icon.svg by Next */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icon.svg" alt="" className="brand-logo" />
+                <span>Renewal<br />Intelligence</span>
               </Link>
               <nav className="side-nav">
                 <Link href="/">Accounts</Link>
