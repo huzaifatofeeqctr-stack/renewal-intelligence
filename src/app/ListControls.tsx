@@ -1,12 +1,29 @@
 import Link from 'next/link';
 
-export function SearchBar({ basePath, q, placeholder }: { basePath: string; q: string; placeholder: string }) {
+export function SearchBar({
+  basePath,
+  q,
+  placeholder,
+  keep = {},
+}: {
+  basePath: string;
+  q: string;
+  placeholder: string;
+  keep?: Record<string, string>; // extra params (sort/filters) to survive a new search
+}) {
+  const kept = Object.entries(keep).filter(([, v]) => v);
+  const clearHref = kept.length
+    ? `${basePath}?${kept.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')}`
+    : basePath;
   return (
     <form className="toolbar" action={basePath} method="get">
+      {kept.map(([k, v]) => (
+        <input type="hidden" name={k} value={v} key={k} />
+      ))}
       <input type="search" name="q" defaultValue={q} placeholder={placeholder} className="search-input" />
       <button type="submit" className="btn-secondary">Search</button>
       {q && (
-        <Link href={basePath} className="btn-clear">
+        <Link href={clearHref} className="btn-clear">
           Clear
         </Link>
       )}
@@ -20,15 +37,21 @@ export function Pagination({
   page,
   totalPages,
   totalItems,
+  keep = {},
 }: {
   basePath: string;
   q: string;
   page: number;
   totalPages: number;
   totalItems: number;
+  keep?: Record<string, string>; // extra params (sort/filters) to survive paging
 }) {
   if (totalPages <= 1) return null;
-  const href = (p: number) => `${basePath}?${q ? `q=${encodeURIComponent(q)}&` : ''}page=${p}`;
+  const kept = Object.entries(keep)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}&`)
+    .join('');
+  const href = (p: number) => `${basePath}?${q ? `q=${encodeURIComponent(q)}&` : ''}${kept}page=${p}`;
 
   const pages: number[] = [];
   for (let p = Math.max(1, page - 2); p <= Math.min(totalPages, page + 2); p++) pages.push(p);

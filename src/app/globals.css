@@ -757,3 +757,19 @@ tr:hover td { background: var(--surface); }
 .enrich-option:disabled { opacity: 0.5; cursor: not-allowed; }
 .enrich-option-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .enrich-option small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+/* ── contacts filter bar + sortable headers ────────────────────────────── */
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center;
+  margin: 10px 0 16px; padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+}
+.filter-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.filter-group-label {
+  color: var(--muted); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.05em; margin-right: 2px;
+}
+.filter-bar .chip { text-decoration: none; }
+.clear-chip { color: var(--critical); border-color: var(--critical); margin-left: auto; }
+.th-sort { color: inherit; text-decoration: none; white-space: nowrap; }
+.th-sort:hover { color: var(--info); }
