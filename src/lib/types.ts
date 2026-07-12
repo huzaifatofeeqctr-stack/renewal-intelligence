@@ -42,6 +42,8 @@ export interface ContactDoc {
   enriched_at: string | null;
   enrichment_provider: string | null;
   watch_checked_at?: string | null; // champion watch: last re-verification
+  left_company?: boolean; // Apollo shows no current role at the account
+  left_company_org?: string | null; // where they went
   updated_at: string;
 }
 

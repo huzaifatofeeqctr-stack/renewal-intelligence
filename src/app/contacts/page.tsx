@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { coll } from '@/lib/db';
 import { requireUser } from '@/lib/require-user';
+import { getWorkspaceSettings } from '@/lib/workspace';
+import { titlesEquivalent } from '@/lib/apollo';
 import type { ContactDoc } from '@/lib/types';
 import { SearchBar, Pagination, parsePage, escapeRegex } from '../ListControls';
 
@@ -37,10 +39,13 @@ const FILTERS: Record<string, { label: string; group: string; cond: Record<strin
   },
   clean: { label: 'clean', group: 'Quality', cond: { is_junk: false } },
   junk: { label: 'junk-flagged', group: 'Quality', cond: { is_junk: true } },
+  left_company: { label: 'not at company', group: 'Status', cond: { left_company: true } },
+  at_company: { label: 'still at company', group: 'Status', cond: { left_company: { $ne: true } } },
 };
 
 function parseState(sp: { [key: string]: string | string[] | undefined }) {
-  const sortKey = typeof sp.sort === 'string' && SORTS[sp.sort] ? sp.sort : 'account';
+  // Alphabetical by default — reps scan the list by name.
+  const sortKey = typeof sp.sort === 'string' && SORTS[sp.sort] ? sp.sort : 'name';
   const dir: 'asc' | 'desc' = sp.dir === 'desc' ? 'desc' : 'asc';
   const active = typeof sp.f === 'string' ? sp.f.split(',').filter((k) => FILTERS[k]) : [];
   const account = typeof sp.account === 'string' ? sp.account : '';
@@ -50,7 +55,7 @@ function parseState(sp: { [key: string]: string | string[] | undefined }) {
 function buildHref(state: { q: string; sortKey: string; dir: string; active: string[]; account: string }): string {
   const params = new URLSearchParams();
   if (state.q) params.set('q', state.q);
-  if (state.sortKey !== 'account' || state.dir !== 'asc') {
+  if (state.sortKey !== 'name' || state.dir !== 'asc') {
     params.set('sort', state.sortKey);
     params.set('dir', state.dir);
   }
@@ -72,9 +77,16 @@ export default async function ContactsPage({
   let contacts: ContactDoc[] = [];
   let total = 0;
   let accountNames: string[] = [];
+  let dupEmails = new Set<string>();
+  let icpTitleList: string[] = [];
+  let titleEquivalences = '';
   let loadError: string | null = null;
+  const sfBase = (process.env.SF_INSTANCE_URL ?? '').replace(/\/$/, '');
   try {
     const c = await coll<ContactDoc>('contacts');
+    const settings = await getWorkspaceSettings();
+    icpTitleList = settings.icp_titles.split(',').map((t) => t.trim()).filter(Boolean);
+    titleEquivalences = settings.title_equivalences;
 
     const clauses: Record<string, unknown>[] = [];
     if (q) {
@@ -96,11 +108,21 @@ export default async function ContactsPage({
     const sortSpec: Record<string, 1 | -1> = { [sortField]: dir === 'asc' ? 1 : -1 };
     if (sortField !== 'last_name') sortSpec.last_name = 1;
 
-    [total, contacts, accountNames] = await Promise.all([
+    let dupRows: { _id: string }[] = [];
+    [total, contacts, accountNames, dupRows] = await Promise.all([
       c.countDocuments(filter),
       c.find(filter).sort(sortSpec).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).toArray(),
       c.distinct('account_name', { account_name: { $ne: null } }) as Promise<string[]>,
+      // Same email on more than one record = duplicate/merge candidate.
+      c
+        .aggregate<{ _id: string }>([
+          { $match: { email: { $ne: null } } },
+          { $group: { _id: '$email', n: { $sum: 1 } } },
+          { $match: { n: { $gt: 1 } } },
+        ])
+        .toArray(),
     ]);
+    dupEmails = new Set(dupRows.map((r) => r._id));
   } catch (e) {
     loadError = e instanceof Error ? e.message : 'failed to load';
   }
@@ -108,7 +130,7 @@ export default async function ContactsPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const state = { q, sortKey, dir, active, account };
   const keep: Record<string, string> = {
-    ...(sortKey !== 'account' || dir !== 'asc' ? { sort: sortKey, dir } : {}),
+    ...(sortKey !== 'name' || dir !== 'asc' ? { sort: sortKey, dir } : {}),
     ...(active.length ? { f: active.join(',') } : {}),
     ...(account ? { account } : {}),
   };
@@ -192,54 +214,78 @@ export default async function ContactsPage({
                   <th><Link href={sortHref('name')} className="th-sort">Name{arrow('name')}</Link></th>
                   <th><Link href={sortHref('account')} className="th-sort">Account{arrow('account')}</Link></th>
                   <th><Link href={sortHref('title')} className="th-sort">Title{arrow('title')}</Link></th>
+                  <th>ICP</th>
                   <th><Link href={sortHref('email')} className="th-sort">Email{arrow('email')}</Link></th>
                   <th><Link href={sortHref('validity')} className="th-sort">Validity{arrow('validity')}</Link></th>
-                  <th><Link href={sortHref('linkedin')} className="th-sort">LinkedIn{arrow('linkedin')}</Link></th>
-                  <th><Link href={sortHref('quality')} className="th-sort">Quality{arrow('quality')}</Link></th>
+                  <th>Status</th>
                   <th><Link href={sortHref('enriched')} className="th-sort">Enriched{arrow('enriched')}</Link></th>
                 </tr>
               </thead>
               <tbody>
-                {contacts.map((c) => (
-                  <tr key={c.sfdc_id}>
-                    <td>{`${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() || '—'}</td>
-                    <td>{c.account_name ?? '—'}</td>
-                    <td>{c.title ?? <span className="badge muted">missing</span>}</td>
-                    <td>{c.email ?? <span className="badge muted">missing</span>}</td>
-                    <td>
-                      <span
-                        className={`badge ${
-                          c.email_valid === 'valid' ? 'ok' : c.email_valid === 'invalid' ? 'critical' : 'muted'
-                        }`}
-                      >
-                        {c.email_valid ?? 'unknown'}
-                      </span>
-                    </td>
-                    <td>
-                      {c.linkedin_url ? (
-                        <a href={c.linkedin_url} target="_blank" rel="noreferrer">
-                          profile
-                        </a>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>
-                      {c.is_junk ? (
-                        <span className="badge warning">{c.junk_reason}</span>
-                      ) : (
-                        <span className="badge ok">clean</span>
-                      )}
-                    </td>
-                    <td>
-                      {c.enriched_at
-                        ? `${new Date(c.enriched_at).toLocaleDateString()}${
-                            c.enrichment_provider ? ` (${c.enrichment_provider})` : ''
-                          }`
-                        : 'never'}
-                    </td>
-                  </tr>
-                ))}
+                {contacts.map((c) => {
+                  const isIcp = Boolean(
+                    c.title && icpTitleList.some((t) => titlesEquivalent(c.title!, t, titleEquivalences))
+                  );
+                  const isDup = Boolean(c.email && dupEmails.has(c.email));
+                  return (
+                    <tr key={c.sfdc_id}>
+                      <td className="contact-name-cell">
+                        {`${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() || '—'}
+                        {c.linkedin_url && (
+                          <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="link-live" title="LinkedIn profile">
+                            in↗
+                          </a>
+                        )}
+                        {sfBase && (
+                          <a
+                            href={`${sfBase}/lightning/r/Contact/${c.sfdc_id}/view`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="link-sf"
+                            title="Open in Salesforce"
+                          >
+                            sf↗
+                          </a>
+                        )}
+                      </td>
+                      <td>{c.account_name ?? '—'}</td>
+                      <td>{c.title ?? <span className="badge muted">missing</span>}</td>
+                      <td>{isIcp ? <span className="badge info">ICP</span> : <span className="dim">—</span>}</td>
+                      <td>{c.email ?? <span className="badge critical">missing email</span>}</td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            c.email_valid === 'valid' ? 'ok' : c.email_valid === 'invalid' ? 'critical' : 'muted'
+                          }`}
+                        >
+                          {c.email_valid ?? 'unknown'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge-stack">
+                          {c.left_company && (
+                            <span
+                              className="badge critical"
+                              title={c.left_company_org ? `Now at ${c.left_company_org}` : 'No current role at this account'}
+                            >
+                              ⚠ not at company
+                            </span>
+                          )}
+                          {isDup && <span className="badge warning" title="Another record shares this email">duplicate?</span>}
+                          {c.is_junk && <span className="badge warning">{c.junk_reason}</span>}
+                          {!c.left_company && !isDup && !c.is_junk && <span className="badge ok">clean</span>}
+                        </span>
+                      </td>
+                      <td>
+                        {c.enriched_at
+                          ? `${new Date(c.enriched_at).toLocaleDateString()}${
+                              c.enrichment_provider ? ` (${c.enrichment_provider})` : ''
+                            }`
+                          : 'never'}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

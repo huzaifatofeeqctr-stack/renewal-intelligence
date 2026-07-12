@@ -40,6 +40,8 @@ interface ContactRow {
   linkedin_url: string | null;
   is_junk: boolean;
   junk_reason: string | null;
+  left_company?: boolean;
+  left_company_org?: string | null;
 }
 
 interface HistoryEntry {
@@ -52,6 +54,7 @@ interface HistoryEntry {
 }
 
 interface Detail {
+  sf_base?: string | null;
   account: AccountCardData & { website: string | null; last_enriched_at?: string | null };
   signals: SignalRow[];
   contacts: ContactRow[];
@@ -392,32 +395,65 @@ export default function AccountsGrid({ accounts }: { accounts: AccountCardData[]
                         </tr>
                       </thead>
                       <tbody>
-                        {visibleContacts.map((c) => (
-                          <tr key={c.sfdc_id}>
-                            <td>
-                              {`${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() || '—'}
-                              {c.linkedin_url && (
-                                <>
-                                  {' '}
-                                  <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="link">
+                        {visibleContacts.map((c) => {
+                          const dupEmail = Boolean(
+                            c.email && (detail?.contacts ?? []).filter((o) => o.email === c.email).length > 1
+                          );
+                          return (
+                            <tr key={c.sfdc_id}>
+                              <td className="contact-name-cell">
+                                {`${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() || '—'}
+                                {c.linkedin_url && (
+                                  <a
+                                    href={c.linkedin_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="link-live"
+                                    title="LinkedIn profile"
+                                  >
                                     in↗
                                   </a>
-                                </>
-                              )}
-                            </td>
-                            <td>{c.title ?? <span className="badge muted">missing</span>}</td>
-                            <td>{c.email ?? <span className="badge muted">missing</span>}</td>
-                            <td>
-                              {c.is_junk ? (
-                                <span className="badge warning">{c.junk_reason}</span>
-                              ) : (
-                                <span className={`badge ${c.email_valid === 'valid' ? 'ok' : 'muted'}`}>
-                                  {c.email_valid === 'valid' ? 'valid email' : 'clean'}
+                                )}
+                                {detail?.sf_base && (
+                                  <a
+                                    href={`${detail.sf_base}/lightning/r/Contact/${c.sfdc_id}/view`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="link-sf"
+                                    title="Open in Salesforce"
+                                  >
+                                    sf↗
+                                  </a>
+                                )}
+                              </td>
+                              <td>{c.title ?? <span className="badge muted">missing</span>}</td>
+                              <td>{c.email ?? <span className="badge critical">missing email</span>}</td>
+                              <td>
+                                <span className="badge-stack">
+                                  {c.left_company && (
+                                    <span
+                                      className="badge critical"
+                                      title={c.left_company_org ? `Now at ${c.left_company_org}` : 'No current role here'}
+                                    >
+                                      ⚠ not at company
+                                    </span>
+                                  )}
+                                  {dupEmail && (
+                                    <span className="badge warning" title="Another record shares this email">
+                                      duplicate?
+                                    </span>
+                                  )}
+                                  {c.is_junk && <span className="badge warning">{c.junk_reason}</span>}
+                                  {!c.left_company && !dupEmail && !c.is_junk && (
+                                    <span className={`badge ${c.email_valid === 'valid' ? 'ok' : 'muted'}`}>
+                                      {c.email_valid === 'valid' ? 'valid email' : 'clean'}
+                                    </span>
+                                  )}
                                 </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}

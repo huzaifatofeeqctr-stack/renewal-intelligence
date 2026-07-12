@@ -47,6 +47,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const lastEnrichedAt = enrichedDates.length > 0 ? enrichedDates.sort().slice(-1)[0] : null;
 
   return NextResponse.json({
+    // Lets the UI deep-link records back to Salesforce (read-only links).
+    sf_base: (process.env.SF_INSTANCE_URL ?? '').replace(/\/$/, '') || null,
     account: { ...account, _id: undefined, last_enriched_at: lastEnrichedAt },
     signals: signals.map((s) => ({ ...s, _id: String((s as { _id?: unknown })._id) })),
     contacts: contacts.map((c) => ({ ...c, _id: undefined })),

@@ -191,6 +191,16 @@ export async function runEnrichBatch(opts: {
         const roleAtAccount = currentRoleAtAccount(person, accountDomain, c.account_name ?? '');
         const hasAnyCurrentRole = person.employment.some((e) => e.current) || Boolean(person.org_name);
 
+        if (!roleAtAccount && hasAnyCurrentRole && person.org_name) {
+          // Persist the state so the UI can flag them even after the signal
+          // is dismissed.
+          updates.left_company = true;
+          updates.left_company_org = person.org_name;
+        } else if (roleAtAccount) {
+          updates.left_company = false;
+          updates.left_company_org = null;
+        }
+
         if (!roleAtAccount && hasAnyCurrentRole && person.org_name && settings.signal_company_change_enabled) {
           const isNew = await emitSignal({
             signal_key: `${c.sfdc_id}|job_change_new_company|${person.org_name}`,
