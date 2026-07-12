@@ -94,14 +94,25 @@ function slackPreviewHtml(template: string): string {
 }
 
 
-export default function WorkspacePanel({ initial, section }: { initial: Ws; section: string }) {
+export default function WorkspacePanel({
+  initial,
+  section,
+  readOnly = false,
+}: {
+  initial: Ws;
+  section: string;
+  readOnly?: boolean;
+}) {
   const [ws, setWs] = useState<Ws>(initial);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [editingTpl, setEditingTpl] = useState<{ key: keyof Ws & string; label: string } | null>(null);
   const [draft, setDraft] = useState('');
+  // Members can SEE every workspace setting but not change it.
+  const locked = busy || readOnly;
 
   async function save(patch: Partial<Ws>) {
+    if (readOnly) return;
     setWs((prev) => ({ ...prev, ...patch }));
     setBusy(true);
     setMessage(null);
@@ -121,7 +132,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
   }
 
   const severitySelect = (value: string, onChange: (v: string) => void) => (
-    <select value={value} disabled={busy} onChange={(e) => onChange(e.target.value)}>
+    <select value={value} disabled={locked} onChange={(e) => onChange(e.target.value)}>
       {SEVERITIES.map((s) => (
         <option key={s} value={s}>{s}</option>
       ))}
@@ -130,6 +141,12 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
 
   return (
     <>
+      {readOnly && (
+        <div className="panel readonly-note">
+          👁 You&apos;re viewing workspace settings read-only — only admins can change them. Ask an admin to promote
+          you in Settings → Team.
+        </div>
+      )}
       {message && (
         <div className={message.kind === 'ok' ? 'form-ok floating-save' : 'form-error floating-save'}>
           {message.text}
@@ -148,7 +165,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             <input
               type="checkbox"
               checked={ws.sf_sync_enabled}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ sf_sync_enabled: e.target.checked })}
             />
           </label>
@@ -160,7 +177,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             <input
               type="checkbox"
               checked={ws.stakeholder_discovery_enabled}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ stakeholder_discovery_enabled: e.target.checked })}
             />
           </label>
@@ -171,7 +188,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             </span>
             <select
               value={ws.enrich_batch_size}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ enrich_batch_size: Number(e.target.value) })}
             >
               {[10, 20, 30, 50, 100].map((n) => (
@@ -186,7 +203,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             </span>
             <select
               value={ws.enrich_cooldown_days}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ enrich_cooldown_days: Number(e.target.value) })}
             >
               {[30, 60, 90, 180].map((n) => (
@@ -201,7 +218,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             </span>
             <select
               value={ws.stakeholder_reveal_budget}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ stakeholder_reveal_budget: Number(e.target.value) })}
             >
               {[5, 10, 25, 50].map((n) => (
@@ -217,7 +234,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             <input
               type="checkbox"
               checked={ws.champion_watch_enabled}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ champion_watch_enabled: e.target.checked })}
             />
           </label>
@@ -228,7 +245,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             </span>
             <select
               value={ws.champion_watch_cadence_days}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ champion_watch_cadence_days: Number(e.target.value) })}
             >
               {[14, 30, 60, 90].map((n) => (
@@ -243,7 +260,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             </span>
             <select
               value={ws.champion_watch_budget}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ champion_watch_budget: Number(e.target.value) })}
             >
               {[5, 10, 20, 30].map((n) => (
@@ -258,7 +275,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
             </span>
             <select
               value={ws.stakeholder_accounts_per_run}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => save({ stakeholder_accounts_per_run: Number(e.target.value) })}
             >
               {[5, 10, 15, 25, 50].map((n) => (
@@ -303,7 +320,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <input
                 type="checkbox"
                 checked={ws.signal_company_change_enabled}
-                disabled={busy}
+                disabled={locked}
                 onChange={(e) => save({ signal_company_change_enabled: e.target.checked })}
               />
               {severitySelect(ws.signal_company_change_severity, (v) => save({ signal_company_change_severity: v }))}
@@ -318,7 +335,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <input
                 type="checkbox"
                 checked={ws.signal_title_change_enabled}
-                disabled={busy}
+                disabled={locked}
                 onChange={(e) => save({ signal_title_change_enabled: e.target.checked })}
               />
               {severitySelect(ws.signal_title_change_severity, (v) => save({ signal_title_change_severity: v }))}
@@ -348,7 +365,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
         </div>
         <IcpTuning
           icpTitles={ws.icp_titles}
-          busy={busy}
+          busy={locked}
           onRemoveTitle={(title) => {
             const remaining = ws.icp_titles
               .split(',')
@@ -369,7 +386,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <strong>Timezone</strong>
               <small>All schedule times are interpreted in this zone</small>
             </span>
-            <select value={ws.timezone} disabled={busy} onChange={(e) => save({ timezone: e.target.value })}>
+            <select value={ws.timezone} disabled={locked} onChange={(e) => save({ timezone: e.target.value })}>
               {!TIMEZONES.includes(ws.timezone) && <option value={ws.timezone}>{ws.timezone}</option>}
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>{tz}</option>
@@ -381,7 +398,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <strong>Salesforce sync time</strong>
               <small>Daily refresh of tracked accounts</small>
             </span>
-            <select value={ws.sf_sync_hour} disabled={busy} onChange={(e) => save({ sf_sync_hour: Number(e.target.value) })}>
+            <select value={ws.sf_sync_hour} disabled={locked} onChange={(e) => save({ sf_sync_hour: Number(e.target.value) })}>
               {HOURS.map((h) => (
                 <option key={h} value={h}>{hourLabel(h)}</option>
               ))}
@@ -392,7 +409,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <strong>Stakeholder discovery time</strong>
               <small>Daily Apollo ICP scan</small>
             </span>
-            <select value={ws.stakeholder_hour} disabled={busy} onChange={(e) => save({ stakeholder_hour: Number(e.target.value) })}>
+            <select value={ws.stakeholder_hour} disabled={locked} onChange={(e) => save({ stakeholder_hour: Number(e.target.value) })}>
               {HOURS.map((h) => (
                 <option key={h} value={h}>{hourLabel(h)}</option>
               ))}
@@ -403,7 +420,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <strong>Champion watch time</strong>
               <small>Daily re-verification of complete contacts</small>
             </span>
-            <select value={ws.champion_watch_hour} disabled={busy} onChange={(e) => save({ champion_watch_hour: Number(e.target.value) })}>
+            <select value={ws.champion_watch_hour} disabled={locked} onChange={(e) => save({ champion_watch_hour: Number(e.target.value) })}>
               {HOURS.map((h) => (
                 <option key={h} value={h}>{hourLabel(h)}</option>
               ))}
@@ -415,12 +432,12 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <small>Weekly Tavily + Anthropic briefings</small>
             </span>
             <span className="schedule-pair">
-              <select value={ws.industry_intel_day} disabled={busy} onChange={(e) => save({ industry_intel_day: Number(e.target.value) })}>
+              <select value={ws.industry_intel_day} disabled={locked} onChange={(e) => save({ industry_intel_day: Number(e.target.value) })}>
                 {DAYS.map((d, i) => (
                   <option key={d} value={i}>{d}</option>
                 ))}
               </select>
-              <select value={ws.industry_intel_hour} disabled={busy} onChange={(e) => save({ industry_intel_hour: Number(e.target.value) })}>
+              <select value={ws.industry_intel_hour} disabled={locked} onChange={(e) => save({ industry_intel_hour: Number(e.target.value) })}>
                 {HOURS.map((h) => (
                   <option key={h} value={h}>{hourLabel(h)}</option>
                 ))}
@@ -440,7 +457,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <strong>Delivery mode</strong>
               <small>Instant pings one message per signal; digest batches everything into one daily summary grouped by owner</small>
             </span>
-            <select value={ws.slack_mode} disabled={busy} onChange={(e) => save({ slack_mode: e.target.value })}>
+            <select value={ws.slack_mode} disabled={locked} onChange={(e) => save({ slack_mode: e.target.value })}>
               <option value="instant">instant</option>
               <option value="digest">daily digest</option>
             </select>
@@ -451,7 +468,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
                 <strong>Digest time</strong>
                 <small>When the daily summary is sent</small>
               </span>
-              <select value={ws.slack_digest_hour} disabled={busy} onChange={(e) => save({ slack_digest_hour: Number(e.target.value) })}>
+              <select value={ws.slack_digest_hour} disabled={locked} onChange={(e) => save({ slack_digest_hour: Number(e.target.value) })}>
                 {HOURS.map((h) => (
                   <option key={h} value={h}>{hourLabel(h)}</option>
                 ))}
@@ -519,7 +536,7 @@ export default function WorkspacePanel({ initial, section }: { initial: Ws; sect
               <button className="btn-clear" onClick={() => setEditingTpl(null)}>Cancel</button>
               <button
                 className="btn-primary"
-                disabled={busy || !draft.trim()}
+                disabled={locked || !draft.trim()}
                 onClick={async () => {
                   await save({ [editingTpl.key]: draft.trim() } as Partial<Ws>);
                   setEditingTpl(null);

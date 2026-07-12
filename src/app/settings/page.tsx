@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/require-user';
 import { getWorkspaceSettings } from '@/lib/workspace';
 import SettingsForm from './SettingsForm';
 import WorkspacePanel from './WorkspacePanel';
+import TeamPanel from './TeamPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,9 @@ const INTEGRATIONS: { name: string; envVar: string }[] = [
   { name: 'Slack alerts', envVar: 'SLACK_WEBHOOK_URL' },
 ];
 
-const ADMIN_TABS: { key: string; label: string }[] = [
+// Workspace tabs are visible to EVERYONE — members get them read-only;
+// only admins can edit (enforced again server-side on the PATCH).
+const WORKSPACE_TABS: { key: string; label: string }[] = [
   { key: 'workspace', label: 'Sync & enrichment' },
   { key: 'signal-rules', label: 'Signal rules' },
   { key: 'schedule', label: 'Schedule' },
@@ -34,9 +37,9 @@ export default async function SettingsPage({
 }) {
   const user = await requireUser();
   const isAdmin = user.role === 'admin';
-  const workspace = isAdmin ? await getWorkspaceSettings() : null;
+  const workspace = await getWorkspaceSettings();
 
-  const tabs = [...(isAdmin ? ADMIN_TABS : []), ...COMMON_TABS];
+  const tabs = [...WORKSPACE_TABS, ...(isAdmin ? [{ key: 'team', label: 'Team' }] : []), ...COMMON_TABS];
   const requested = typeof searchParams.tab === 'string' ? searchParams.tab : '';
   const tab = tabs.some((t) => t.key === requested) ? requested : tabs[0].key;
 
@@ -53,9 +56,11 @@ export default async function SettingsPage({
       </aside>
 
       <div className="settings-content stack">
-        {workspace && ADMIN_TABS.some((t) => t.key === tab) && (
-          <WorkspacePanel initial={workspace} section={tab} />
+        {WORKSPACE_TABS.some((t) => t.key === tab) && (
+          <WorkspacePanel initial={workspace} section={tab} readOnly={!isAdmin} />
         )}
+
+        {tab === 'team' && isAdmin && <TeamPanel selfEmail={user.email} />}
 
         {tab === 'preferences' && <SettingsForm initial={user.settings} />}
 

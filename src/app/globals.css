@@ -802,3 +802,5 @@ tr:hover td { background: var(--surface); }
 @media (prefers-reduced-motion: reduce) {
   .splash { display: none; }
 }
+
+.readonly-note { color: var(--muted); font-size: 13px; padding: 12px 16px; }
