@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { coll } from '@/lib/db';
 import { getSessionUser } from '@/lib/authn';
+import { logUserAction } from '@/lib/user-audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const signals = await coll('signals');
   const result = await signals.updateOne({ _id: new ObjectId(params.id) }, { $set: updates });
+  await logUserAction(
+    user.email,
+    'signal.update',
+    `${params.id}: ${Object.entries(updates).filter(([k]) => ['status', 'relevance', 'dismissed'].includes(k)).map(([k, v]) => `${k}=${v}`).join(' ')}`
+  );
   if (result.matchedCount === 0) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }

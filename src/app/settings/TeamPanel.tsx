@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 interface TeamUser {
   email: string;
   name: string;
-  role: 'admin' | 'member';
+  role: 'superadmin' | 'admin' | 'member';
   created_at: string;
 }
 
@@ -58,8 +58,8 @@ export default function TeamPanel({ selfEmail }: { selfEmail: string }) {
                 </strong>
                 <small>{u.email} · joined {new Date(u.created_at).toLocaleDateString()}</small>
               </span>
-              {u.email === selfEmail ? (
-                <span className={`badge ${u.role === 'admin' ? 'info' : 'muted'}`}>{u.role}</span>
+              {u.email === selfEmail || u.role === 'superadmin' ? (
+                <span className={`badge ${u.role === 'member' ? 'muted' : 'info'}`}>{u.role}</span>
               ) : (
                 <select
                   value={u.role}

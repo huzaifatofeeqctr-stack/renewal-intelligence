@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/authn';
 import { requireCronAuth, logRun } from '@/lib/auth';
 import { importAccounts } from '@/lib/sf-import';
+import { logUserAction } from '@/lib/user-audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
         detail: `${a.contacts} contacts pulled (${a.junk} junk-flagged)${a.renewal_date ? ` · renewal ${a.renewal_date}` : ''}`,
       })),
     });
+    await logUserAction(user?.email ?? 'cron', 'account.import', `${result.perAccount[0]?.name ?? id} (${result.contacts} contacts)`);
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { coll } from '@/lib/db';
-import { getSessionUser, type UserDoc } from '@/lib/authn';
+import { getSessionUser, isAdminRole, type UserDoc } from '@/lib/authn';
+import { logUserAction } from '@/lib/user-audit';
 
 export const dynamic = 'force-dynamic';
 
 // GET: list workspace users (admin only) — powers the Team settings tab.
 export async function GET() {
   const user = await getSessionUser();
-  if (user?.role !== 'admin') return NextResponse.json({ error: 'admin only' }, { status: 403 });
+  if (!user || !isAdminRole(user.role)) return NextResponse.json({ error: 'admin only' }, { status: 403 });
 
   const users = await coll<UserDoc>('users');
   const list = await users
@@ -27,7 +28,7 @@ export async function GET() {
 // change their own role, so a workspace can never lock itself out.
 export async function PATCH(req: NextRequest) {
   const user = await getSessionUser();
-  if (user?.role !== 'admin') return NextResponse.json({ error: 'admin only' }, { status: 403 });
+  if (!user || !isAdminRole(user.role)) return NextResponse.json({ error: 'admin only' }, { status: 403 });
 
   const body = (await req.json().catch(() => ({}))) as { email?: string; role?: string };
   const email = (body.email ?? '').toLowerCase().trim();
@@ -39,10 +40,16 @@ export async function PATCH(req: NextRequest) {
   }
 
   const users = await coll<UserDoc>('users');
+  const target = await users.findOne({ email });
+  if (!target) return NextResponse.json({ error: 'user not found' }, { status: 404 });
+  if (target.role === 'superadmin') {
+    return NextResponse.json({ error: 'the superadmin role cannot be changed' }, { status: 400 });
+  }
   const res = await users.updateOne(
     { email },
     { $set: { role: body.role, updated_at: new Date().toISOString() } }
   );
   if (res.matchedCount === 0) return NextResponse.json({ error: 'user not found' }, { status: 404 });
+  await logUserAction(user.email, 'user.role_change', `${email} -> ${body.role}`);
   return NextResponse.json({ ok: true, email, role: body.role });
 }

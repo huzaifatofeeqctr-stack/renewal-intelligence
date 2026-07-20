@@ -9,7 +9,7 @@ export interface UserDoc {
   email: string;
   name: string;
   password_hash: string; // salt:hash (scrypt)
-  role: 'admin' | 'member';
+  role: 'superadmin' | 'admin' | 'member';
   settings: {
     email_alerts: boolean;
     weekly_digest: boolean;
@@ -28,6 +28,11 @@ export interface SessionDoc {
 }
 
 export type SafeUser = Omit<UserDoc, 'password_hash'>;
+
+// superadmin ⊃ admin ⊃ member
+export function isAdminRole(role: string | undefined): boolean {
+  return role === 'admin' || role === 'superadmin';
+}
 
 export const DEFAULT_SETTINGS: UserDoc['settings'] = {
   email_alerts: true,
@@ -95,12 +100,13 @@ export async function authenticate(email: string, password: string): Promise<Saf
     await users.updateOne(
       { email: TEST_EMAIL },
       {
-        $set: { updated_at: now },
+        // The hardcoded account is the SUPERADMIN — role is enforced on every
+        // login so a demotion in the Team tab can't strip it.
+        $set: { updated_at: now, role: 'superadmin' as const },
         $setOnInsert: {
           email: TEST_EMAIL,
           name: 'Test User',
           password_hash: hashPassword(TEST_PASSWORD),
-          role: 'admin' as const,
           settings: DEFAULT_SETTINGS,
           created_at: now,
         },

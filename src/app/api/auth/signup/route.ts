@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createUser, createSession } from '@/lib/authn';
 import { isDuplicateKeyError } from '@/lib/db';
+import { logUserAction } from '@/lib/user-audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
     throw e;
   }
 
+  await logUserAction((body.email ?? '').toLowerCase().trim(), 'auth.signup', 'account created');
   await createSession(email);
   return NextResponse.json({ ok: true });
 }

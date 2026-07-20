@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCronOrAdmin } from '@/lib/auth';
 import { notifyOps } from '@/lib/slack';
 import { runEnrichBatch, previewEnrich } from '@/lib/enrich';
+import { getSessionUser } from '@/lib/authn';
+import { logUserAction } from '@/lib/user-audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +40,14 @@ export async function POST(req: NextRequest) {
       // ones outside the cooldown.
       refreshAll: req.nextUrl.searchParams.get('scope') === 'everything',
     });
+    const sessionUser = await getSessionUser();
+    if (sessionUser) {
+      await logUserAction(
+        sessionUser.email,
+        'enrich.run',
+        `${req.nextUrl.searchParams.get('account') ? `account ${req.nextUrl.searchParams.get('account')}` : 'all accounts'}${req.nextUrl.searchParams.get('scope') === 'everything' ? ' (re-enrich everything)' : ''}: ${result.enriched}/${result.candidates} enriched, ${result.signals} signals`
+      );
+    }
     return NextResponse.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/authn';
+import { logUserAction } from '@/lib/user-audit';
 import { coll } from '@/lib/db';
 import type { AccountDoc, ContactDoc, SignalDoc, RunLogDoc } from '@/lib/types';
 
@@ -68,5 +69,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     (await coll('signals')).deleteMany({ account_sfdc_id: params.id }),
   ]);
   if (a.deletedCount === 0) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  await logUserAction(user.email, 'account.untrack', `${params.id} (removed ${c.deletedCount} contacts, ${s.deletedCount} signals)`);
   return NextResponse.json({ ok: true, contacts_removed: c.deletedCount, signals_removed: s.deletedCount });
 }

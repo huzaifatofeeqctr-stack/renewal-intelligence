@@ -21,9 +21,9 @@ export async function requireCronOrAdmin(req: NextRequest): Promise<NextResponse
   const header = req.headers.get('authorization');
   const query = req.nextUrl.searchParams.get('secret');
   if (secret && (header === `Bearer ${secret}` || query === secret)) return null;
-  const { getSessionUser } = await import('./authn');
+  const { getSessionUser, isAdminRole } = await import('./authn');
   const user = await getSessionUser();
-  if (user?.role === 'admin') return null;
+  if (isAdminRole(user?.role)) return null;
   return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 }
 

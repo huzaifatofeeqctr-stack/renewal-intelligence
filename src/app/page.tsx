@@ -105,7 +105,7 @@ export default async function AccountsPage({
           <h1>Accounts</h1>
           <p className="subtitle">Sorted by CRM health — accounts with open critical signals first.</p>
         </div>
-        {user.role === 'admin' && <RunNowBar lastEnrichRunAt={lastEnrichRunAt} />}
+        {(user.role === 'admin' || user.role === 'superadmin') && <RunNowBar lastEnrichRunAt={lastEnrichRunAt} />}
       </div>
       <SearchBar basePath="/" q={q} placeholder="Search by account, industry, owner, or domain…" />
       {loadError ? (

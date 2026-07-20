@@ -36,7 +36,7 @@ export default async function SettingsPage({
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
   const user = await requireUser();
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
   const workspace = await getWorkspaceSettings();
 
   const tabs = [...WORKSPACE_TABS, ...(isAdmin ? [{ key: 'team', label: 'Team' }] : []), ...COMMON_TABS];

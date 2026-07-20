@@ -36,6 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/contacts">Contacts</Link>
                 <Link href="/industry">Industry Intel</Link>
                 <Link href="/activity">Activity</Link>
+                {user.role === 'superadmin' && <Link href="/logs">User logs</Link>}
                 <Link href="/import">Import</Link>
               </nav>
               <div className="side-user">
